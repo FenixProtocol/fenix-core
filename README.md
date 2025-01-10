@@ -1,9 +1,34 @@
+# Fenix Core
+
+Welcome to **Fenix Core**, the new official home for the [Fenix](https://github.com/Satsyxbt/Fenix) repository!
+
+---
+
+## :sparkles: Repository Relocation
+
+#### Moved From:
+- **[Satsyxbt/Fenix](https://github.com/Satsyxbt/Fenix)**  
+  This repository is now archived/outdated.
+- **[Satsyxbt/Fenix-Dex-V3](https://github.com/Satsyxbt/fenix-dex-v3)**  
+  This repository is now archived/outdated.
+#### Moved To:
+- **[FenixProtocol/fenix-core](https://github.com/FenixProtocol/fenix-core)**  
+- **[FenixProtocol/fenix-algebra](https://github.com/FenixProtocol/fenix-algebra)**  
+
+---
+
+### :warning: Important Note on Fenix Dex V3
+- The **old** Fenix Dex V3 repository at [Satsyxbt/Fenix-dex-v3](https://github.com/Satsyxbt/Fenix-dex-v3) has also been migrated.
+- Please use **[FenixProtocol/fenix-algebra](https://github.com/FenixProtocol/fenix-algebra)** for the latest iteration of Dex V3 and related algebraic components.
+
+---
 
 ## Project overiew
 
 The `Fenix` protocol is a modified version of `Chronos & Thena`, introducing innovations and changes
 
 At its core, the protocol is based on the `ve(3,3)` concept, with a new set of integrations and a variable set of rules.
+
 
 ### Links
 - [Fenix ve(3,3) Core](https://github.com/Satsyxbt/Fenix)
@@ -61,11 +86,11 @@ npm install
 ```
 
 ### Running basic tests
-To run the existing tests, also need to compile the artifacts of the fenix-dex-v3 library
+To run the existing tests, also need to compile the artifacts of the fenix-algebra library
 ```
 sh
 1.
-    cd lib/fenix-dex-v3
+    cd lib/fenix-algebra
     npm install
 
 2. 

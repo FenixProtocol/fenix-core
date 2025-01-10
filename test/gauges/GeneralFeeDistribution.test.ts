@@ -23,7 +23,7 @@ import completeFixture, {
   deployGaugeFactory,
   deployGaugeImplementation,
 } from '../utils/coreFixture';
-import { erc20Wrap } from '../../lib/fenix-dex-v3/src/farming/test/shared';
+import { erc20Wrap } from '../../lib/fenix-algebra/src/farming/test/shared';
 import { AlgebraFactoryUpgradeable, AlgebraPool, IAlgebraPool } from '@cryptoalgebra/integral-core/typechain';
 import { encodePriceSqrt } from '@cryptoalgebra/integral-core/test/shared/utilities';
 import { pool } from '@cryptoalgebra/integral-core/typechain/contracts/interfaces';

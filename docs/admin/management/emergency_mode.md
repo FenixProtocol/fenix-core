@@ -4,7 +4,7 @@ The protocol includes several emergency functions designed to protect the system
 Short list:
 * `PairFactory.setPause(bool _state)`
 * `PairFactory.setIsPublicPoolCreationMode(bool mode_)`
-* `Fenix-dex-v3` - replace plugin with pause functionality
+* `Fenix-algebra` - replace plugin with pause functionality
 * `Bribe.emergencyRecoverERC20(address tokenAddress, uint256 tokenAmount)`
 * `Bribe.recoverERC20AndUpdateData(address tokenAddress, uint256 tokenAmount)`
 * `Gauge.activateEmergencyMode()`

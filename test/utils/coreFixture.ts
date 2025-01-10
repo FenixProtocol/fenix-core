@@ -59,7 +59,7 @@ import {
   IAlgebraFactory,
   AlgebraPoolDeployer,
   AlgebraFactoryUpgradeable,
-} from '../../lib/fenix-dex-v3/src/core/typechain';
+} from '../../lib/fenix-algebra/src/core/typechain';
 import { NonfungiblePositionManager, SwapRouter } from '@cryptoalgebra/integral-periphery/typechain';
 import { ART_RPOXY_PARTS } from '../../utils/ArtProxy';
 
