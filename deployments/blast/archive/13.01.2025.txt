@@ -1,0 +1,64 @@
+Starting deployment of BribeVeFNXRewardToken...
+	Constructor arguments: ["0x72e47b1eaAAaC6c07Ea4071f1d0d355f603E1cc1"]
+BribeVeFNXRewardToken deployed at 0x3F3eb2F3B09603b97e93060d68FdbC6Dc13Ce9F8
+Save to deploys.json deployed address of BribeVeFNXRewardToken_Implementation:0x3F3eb2F3B09603b97e93060d68FdbC6Dc13Ce9F8
+Verifying TransparentUpgradeableProxy at 0x3F3eb2F3B09603b97e93060d68FdbC6Dc13Ce9F8...
+Timeout for 10s before verify proccess...
+Successfully submitted source code for contract
+contracts/bribes/rewards/BribeVeFNXRewardToken.sol:BribeVeFNXRewardToken at 0x3F3eb2F3B09603b97e93060d68FdbC6Dc13Ce9F8
+for verification on the block explorer. Waiting for verification result...
+
+Successfully verified contract BribeVeFNXRewardToken on the block explorer.
+https://blastscan.io/address/0x3F3eb2F3B09603b97e93060d68FdbC6Dc13Ce9F8#code
+
+Starting deployment of TransparentUpgradeableProxy...
+	Logic address: 0x3F3eb2F3B09603b97e93060d68FdbC6Dc13Ce9F8
+	Admin address: 0xdD75F0d1ccF1b2E115d87f0177b67c0F0F8429B5
+	Data: 0x
+TransparentUpgradeableProxy deployed at 0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748
+Save to deploys.json deployed address of BribeVeFNXRewardToken_Proxy:0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748
+Verifying TransparentUpgradeableProxy at 0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748...
+Timeout for 10s before verify proccess...
+The contract 0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748 has already been verified on Etherscan.
+https://blastscan.io/address/0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748#code
+	Called Contract(0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748).initialize(blastGovernor_: "0x72e47b1eaAAaC6c07Ea4071f1d0d355f603E1cc1", votingEscrow_: "0xC900C984a3581EfA4Fb56cAF6eF19721aAFbB4f9")
+	Transaction hash: 0x704b330627950114bc1f3c6e0818494d3b2f9f5aea839a4e85e94895f1bc032c
+Starting deployment of CustomBribeRewardRouter...
+	Constructor arguments: ["0x72e47b1eaAAaC6c07Ea4071f1d0d355f603E1cc1"]
+CustomBribeRewardRouter deployed at 0xE43F46358780F0904820d0B9191d987fE30D58d4
+Save to deploys.json deployed address of CustomBribeRewardRouter_Implementation:0xE43F46358780F0904820d0B9191d987fE30D58d4
+Verifying TransparentUpgradeableProxy at 0xE43F46358780F0904820d0B9191d987fE30D58d4...
+Timeout for 10s before verify proccess...
+Successfully submitted source code for contract
+contracts/bribes/rewards/CustomBribeRewardRouter.sol:CustomBribeRewardRouter at 0xE43F46358780F0904820d0B9191d987fE30D58d4
+for verification on the block explorer. Waiting for verification result...
+
+Successfully verified contract CustomBribeRewardRouter on the block explorer.
+https://blastscan.io/address/0xE43F46358780F0904820d0B9191d987fE30D58d4#code
+
+Starting deployment of TransparentUpgradeableProxy...
+	Logic address: 0xE43F46358780F0904820d0B9191d987fE30D58d4
+	Admin address: 0xdD75F0d1ccF1b2E115d87f0177b67c0F0F8429B5
+	Data: 0x
+TransparentUpgradeableProxy deployed at 0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd
+Save to deploys.json deployed address of CustomBribeRewardRouter_Proxy:0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd
+Verifying TransparentUpgradeableProxy at 0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd...
+Timeout for 10s before verify proccess...
+The contract 0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd has already been verified on Etherscan.
+https://blastscan.io/address/0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd#code
+	Called Contract(0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd).initialize(blastGovernor_: "0x72e47b1eaAAaC6c07Ea4071f1d0d355f603E1cc1", voter_: "0x56129f1c0aED4aDBeE862986FAcE5Ba8c9aC3d9B", bribeVeFnxRewardToken_: "0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748")
+	Transaction hash: 0xd89cbb4a7ad90a5f5b414c00c0eccab307d055adcc72a9c9b5cc46a8e4e2d17d
+	Called Contract(0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748).grantRole(role: "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6", account: "0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd")
+	Transaction hash: 0xd867fa9278ee89c7b80e766539b5f0be8cc669c7e9d168d99ecd8bd38658a090
+	Called Contract(0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd).setupFuncEnable(funcSign_: "0x0eddae61", isEnable_: "true")
+	Transaction hash: 0x0a3424502efa214a660348a52319dc9820ef19667f95bf3c881612c09a2eb3e2
+	Called Contract(0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd).setupFuncEnable(funcSign_: "0x5bbec3a8", isEnable_: "true")
+	Transaction hash: 0x640c534729987645103ee8483d58e21251d48b90e00de2dbda125ed9f75f3999
+	Called Contract(0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748).grantRole(role: "0x0000000000000000000000000000000000000000000000000000000000000000", account: "0x0907fb24626a06e383BD289A0e9C8560b8cCC4b5")
+	Transaction hash: 0xb8761567b5362a5f41e4b5093cb5f379cddb1d1dd7c1ac0980e7f69f0f109ce4
+	Called Contract(0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd).grantRole(role: "0x0000000000000000000000000000000000000000000000000000000000000000", account: "0x0907fb24626a06e383BD289A0e9C8560b8cCC4b5")
+	Transaction hash: 0x7f36ae7bd5fda0ff40ee94cc9c2ecfbe129aac35fec095af811e456a14247283
+	Called Contract(0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748).revokeRole(role: "0x0000000000000000000000000000000000000000000000000000000000000000", account: "0x4867664BaAFE5926B3cA338e96c88fB5a5FeAb30")
+	Transaction hash: 0x43967d8142478de9fbb1b8f5234ff030feef6fdd6704bb9127691d017ffd0d71
+	Called Contract(0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd).revokeRole(role: "0x0000000000000000000000000000000000000000000000000000000000000000", account: "0x4867664BaAFE5926B3cA338e96c88fB5a5FeAb30")
+	Transaction hash: 0x7df2931f9aacc2e8567bacaf67e792cc0e1aa72d1cefad4304c9c74d8a51204d

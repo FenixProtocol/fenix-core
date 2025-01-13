@@ -70,5 +70,9 @@
   "OpenOceanVeNftDirectBuyer": "0x76197ce78fbA38F996FcBCd6BA47041a8E36E7A4",
   "GetInformationAggregatorUpgradeable_ProxyAdmin": "0x455410479e890272C7b7190b63c9C4544039B480",
   "GetInformationAggregatorUpgradeable_Implementation": "0x699763De7D9b5db9108Fc8fEE9797334e2F0baF3",
-  "GetInformationAggregatorUpgradeable_Proxy": "0x00Cb611513C13F86903021379a99c567b34bDD87"
+  "GetInformationAggregatorUpgradeable_Proxy": "0x00Cb611513C13F86903021379a99c567b34bDD87",
+  "BribeVeFNXRewardToken_Implementation": "0x3F3eb2F3B09603b97e93060d68FdbC6Dc13Ce9F8",
+  "BribeVeFNXRewardToken_Proxy": "0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748",
+  "CustomBribeRewardRouter_Implementation": "0xE43F46358780F0904820d0B9191d987fE30D58d4",
+  "CustomBribeRewardRouter_Proxy": "0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd"
 }

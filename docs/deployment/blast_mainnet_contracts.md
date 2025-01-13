@@ -38,6 +38,8 @@
 | **VeFnxDistributorUpgradeable_V2_Proxy** | `0x320764d8c5Ed36A7aBb4347e2e21a3ECA4af914D` |
 | **VeArtStatic** | `0xd4B31701DDBdC69bb4e8aB7118d73151CaC5c90F` |
 | **OpenOceanVeNftDirectBuyer** | `0x76197ce78fbA38F996FcBCd6BA47041a8E36E7A4`|
+| **BribeVeFNXRewardToken_Proxy** | `0xf50F9D5F903A3aE58Db1D39b38233f2170bEF748`|
+| **CustomBribeRewardRouter_Proxy** | `0xd6bd9EDF022406c7b5cc0fB6cb23d851034A6Dcd`|
 
 ### Migration
 | Contract Name | Address |
@@ -102,7 +104,7 @@
 | **VotingEscrowUpgradeable_Implementation** | `0x185a3FeB14f7260424ad65d2c809FDc33a0B3d47`|
 | **VeBoostUpgradeable_Implementation** | `0xAA9378E03b4852EA02466Ad1a4BF685715a3F6d7` |
 | **PerpetualsGaugeUpgradeable_Implementation** | `0xEbbA76Fc6045E0F5903BF2DE1e2AFE9c0df94622` |
-| **CompoundVeFNXManagedNFTStrategyUpgradeable_Implementation** | `0xcE14a4F6D8D54A96FbD31db53da45096508c6cb5` (Future: 0x57c44E554C9862107941b122afca35beb0B77b0f) |
+| **CompoundVeFNXManagedNFTStrategyUpgradeable_Implementation** | `0x57c44E554C9862107941b122afca35beb0B77b0f` |
 | **BribeUpgradeable_Implementation** | `0x6564aBfCadB199Edf0E3A4F2f63b4Bc03B9266eC` |
 | **GaugeUpgradeable_V2Pools_Implementation** | `0x67d391Aa49ddD09E57b0b9226e2891e408621e9b` |
 | **GaugeUpgradeable_V3Pools_Implementation** | `0x58D12813E77B87c67ccC9312598c8E1d35B96E23` |
@@ -117,7 +119,7 @@
 | **SingelTokenVirtualRewarderUpgradeable_Implementation** | `0xA2b8815b1761Ea8cc351Ca6619d1AC2998561196` |
 | **CompoundVeFNXManagedNFTStrategyFactoryUpgradeable_Implementation** | `0xefE86ABbF1C18Df85a77e80cC60dFb4d46365CF1` |
 | **RouterV2PathProviderUpgradeable_Implementation** | `0xbD7852f7e21bc23944A2809315385733C734369c` |
-| **ManagedNFTManagerUpgradeable_Implementation** | `0x5db6c3B0F80D28ca0c4b96167C5957c44561171d`(Future: 0xA22bd1a538eED9C6914874DeEdc7033aCF8FFbBA) |
+| **ManagedNFTManagerUpgradeable_Implementation** | `0xA22bd1a538eED9C6914874DeEdc7033aCF8FFbBA`) |
 | **PairAPIUpgradeable_Implementation** | `0x2f0044922D9a58F8EcC78D4f898eA64FCa364E71` |
 | **RewardAPIUpgradeable_Implementation** | `0x2fA82cca7D2e73e4cF5f19cEB1aB866Dca40b2fb`|
 | **VeNFTAPIUpgradeable_Implementation** | `0xD5926da7196096101E7cd4742bA0f853C2b8db0E`|
@@ -125,3 +127,5 @@
 | **VeArtProxyUpgradeable_Implementation** | `0xdc24C85A65580fF0d6c9178534e98ac4C8eCE8f8` |
 | **UtilsUpgradeable_Proxy** | `0x0c39cC69DD9f0a06360be1E8d46565eC24Ad7A4F` |
 | **PairFactoryUpgradeable_Implementation** | `0x0b3F38F9a1C62065234e234Ac8a9Edc6743563E9` |
+| **BribeVeFNXRewardToken_Implementation** | `0x3F3eb2F3B09603b97e93060d68FdbC6Dc13Ce9F8` |
+| **CustomBribeRewardRouter_Implementation** | `0xE43F46358780F0904820d0B9191d987fE30D58d4` |
