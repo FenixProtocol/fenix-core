@@ -294,6 +294,8 @@ contract VotingEscrowUpgradeableV2 is
         }
 
         emit Merge(_msgSender(), tokenFromId_, tokenToId_);
+
+        IVoter(voter).onAfterTokenMerge(tokenFromId_, tokenToId_);
     }
 
     /**
@@ -559,6 +561,21 @@ contract VotingEscrowUpgradeableV2 is
 
         nftStates[firstTokenId_].lastTranferBlock = block.number;
         super._beforeTokenTransfer(from_, to_, firstTokenId_, batchSize_);
+    }
+
+    /**
+     * @notice Handles post-transfer logic for a specific token
+     * @dev If both `from_` and `to_` are non-zero, this indicates a standard transfer (not minting or burning).
+     *      In this case, the function notifies the Voter contract via `onAfterTokenTransfer`.
+     * @param from_ The address from which the token(s) are transferred.
+     * @param to_ The address to which the token(s) are transferred.
+     * @param firstTokenId_ The ID of the first token in this transfer operation.
+     */
+    function _afterTokenTransfer(address from_, address to_, uint256 firstTokenId_, uint256 /**batchSize**/) internal virtual override {
+        if (from_ != address(0) && to_ != address(0)) {
+            // only for non mint/burn transfers
+            IVoter(voter).onAfterTokenTransfer(from_, to_, firstTokenId_);
+        }
     }
 
     /**

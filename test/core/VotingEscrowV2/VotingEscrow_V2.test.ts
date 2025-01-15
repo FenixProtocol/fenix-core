@@ -1,21 +1,12 @@
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { loadFixture, mine, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { mine, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import {
-  ERC20Mock,
-  Fenix,
-  ManagedNFTManagerMock,
-  ManagedNFTManagerUpgradeable,
-  VeArtProxy,
-  VotingEscrowUpgradeableV2,
-} from '../../../typechain-types';
-import completeFixture, { deployArtProxy, deployERC20MockToken, mockBlast } from '../../utils/coreFixture';
+import { ERC20Mock, ManagedNFTManagerMock, VeArtProxy, VoterMock, VotingEscrowUpgradeableV2 } from '../../../typechain-types';
+import { deployArtProxy, deployERC20MockToken, mockBlast } from '../../utils/coreFixture';
 
 import { ContractTransactionResponse } from 'ethers';
-import { ERRORS, ONE, ONE_ETHER, VotingEscrowDepositType } from '../../utils/constants';
-import { AssertSwapEchidnaTest__factory } from '@cryptoalgebra/integral-core/typechain';
-import { erc1967 } from '@cryptoalgebra/integral-core/typechain/@openzeppelin/contracts/proxy';
+import { ERRORS, ONE_ETHER, VotingEscrowDepositType } from '../../utils/constants';
 
 const MAX_LOCK_TIME = 15724800;
 const WEEK = 86400 * 7;
@@ -31,10 +22,6 @@ type Signers = {
 
 async function roundToWeek(time: bigint) {
   return (time / BigInt(WEEK)) * BigInt(WEEK);
-}
-
-function calculateLinerVotingPower(amount: bigint, currentTime: bigint, start: bigint, end: bigint) {
-  return ((amount * ((end - currentTime) * ONE_ETHER)) / (end - start)) * ONE_ETHER;
 }
 
 async function getRestForNextEpoch() {
@@ -56,7 +43,7 @@ async function fixture() {
   ])) as any;
   VotingEscrow = await ethers.getContractAt('VotingEscrowUpgradeableV2', VotingEscrow.target);
   let ManagedNFTManagerMock = await ethers.deployContract('ManagedNFTManagerMock');
-
+  let Voter = await ethers.deployContract('VoterMock');
   return {
     signers: {
       deployer: signers[0],
@@ -69,6 +56,7 @@ async function fixture() {
     VotingEscrow_Implementation: VotingEscrow_Implementation,
     VotingEscrow: VotingEscrow,
     ManagedNFTManagerMock: ManagedNFTManagerMock,
+    Voter: Voter,
   };
 }
 
@@ -80,7 +68,9 @@ describe('VotingEscrow_V2', function () {
   let token: ERC20Mock;
   let initializeTx: ContractTransactionResponse;
   let managedNFTManager: ManagedNFTManagerMock;
-  let voter: HardhatEthersSigner, veBoost: HardhatEthersSigner;
+  let voter: HardhatEthersSigner;
+  let veBoost: HardhatEthersSigner;
+  let initialVoterContract: VoterMock;
 
   beforeEach(async () => {
     const deployed = await fixture();
@@ -91,11 +81,12 @@ describe('VotingEscrow_V2', function () {
     signers = deployed.signers;
     voter = signers.others[0];
     veBoost = signers.others[1];
+    initialVoterContract = deployed.Voter;
     token = await deployERC20MockToken(signers.deployer, 'MOK', 'MOK', 18);
     initializeTx = await VotingEscrow.initialize(signers.blastGovernor.address, token.target);
     VeArtProxyUpgradeable = await deployArtProxy(signers.deployer, VotingEscrow.target.toString(), managedNFTManager.target.toString());
 
-    await VotingEscrow.updateAddress('voter', voter.address);
+    await VotingEscrow.updateAddress('voter', initialVoterContract.target);
     await VotingEscrow.updateAddress('veBoost', veBoost.address);
     await VotingEscrow.updateAddress('artProxy', VeArtProxyUpgradeable.target);
     await VotingEscrow.updateAddress('managedNFTManager', managedNFTManager.target);
@@ -156,7 +147,7 @@ describe('VotingEscrow_V2', function () {
 
       it('voter & artProxy & veBoost & managedNFTManager', async () => {
         expect(await VotingEscrow.artProxy()).to.be.eq(VeArtProxyUpgradeable.target);
-        expect(await VotingEscrow.voter()).to.be.eq(voter.address);
+        expect(await VotingEscrow.voter()).to.be.eq(initialVoterContract.target);
         expect(await VotingEscrow.veBoost()).to.be.eq(veBoost.address);
         expect(await VotingEscrow.managedNFTManager()).to.be.eq(managedNFTManager.target);
       });
@@ -284,7 +275,7 @@ describe('VotingEscrow_V2', function () {
       it('success change voted state of nft ', async () => {
         expect((await VotingEscrow.nftStates(1)).isVoted).to.be.false;
         expect((await VotingEscrow.nftStates(2)).isVoted).to.be.false;
-
+        await VotingEscrow.updateAddress('voter', voter);
         await VotingEscrow.connect(voter).votingHook(1, true);
         expect((await VotingEscrow.nftStates(1)).isVoted).to.be.true;
         expect((await VotingEscrow.nftStates(2)).isVoted).to.be.false;
@@ -633,10 +624,12 @@ describe('VotingEscrow_V2', function () {
       expect(await VotingEscrow.balanceOf(signers.user1.address)).to.be.eq(2);
       expect(await VotingEscrow.supply()).to.be.eq(ONE_ETHER + ONE_ETHER);
       expect(await VotingEscrow.permanentTotalSupply()).to.be.eq(ONE_ETHER);
-      let nftStateBefore = await VotingEscrow.nftStates(2);
 
       expect(await VotingEscrow.votingPowerTotalSupply()).to.be.closeTo(ethers.parseEther('2'), ethers.parseEther('2') / 26n);
       let tx = await VotingEscrow.connect(signers.user1).merge(1, 2);
+
+      await expect(tx).to.be.emit(initialVoterContract, 'OnAfterTokenMerge').withArgs(VotingEscrow, 1, 2);
+
       await expect(tx).to.be.emit(VotingEscrow, 'Merge').withArgs(signers.user1.address, 1, 2);
       await expect(tx).to.be.emit(VotingEscrow, 'Transfer').withArgs(signers.user1.address, ethers.ZeroAddress, 1);
       await expect(tx)
@@ -995,6 +988,12 @@ describe('VotingEscrow_V2', function () {
 
       it('emit events', async () => {
         await expect(tx).to.be.emit(VotingEscrow, 'Transfer').withArgs(signers.user1.address, signers.user2.address, nftId);
+      });
+
+      it('MOCK: call hook, with information about transfer', async () => {
+        await expect(tx)
+          .to.be.emit(initialVoterContract, 'OnAfterTokenTransfer')
+          .withArgs(VotingEscrow, signers.user1.address, signers.user2.address, nftId);
       });
 
       it('change last transfer block', async () => {

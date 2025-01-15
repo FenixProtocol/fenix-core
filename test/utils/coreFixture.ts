@@ -1,67 +1,64 @@
-import { ethers } from 'hardhat';
-import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { getCreateAddress } from 'ethers';
 import {
   abi as FACTORY_ABI,
   bytecode as FACTORY_BYTECODE,
 } from '@cryptoalgebra/integral-core/artifacts/contracts/AlgebraFactoryUpgradeable.sol/AlgebraFactoryUpgradeable.json';
 import {
-  abi as SWAP_ROUTER_ABI,
-  bytecode as SWAP_ROUTER_BYTECODE,
-} from '@cryptoalgebra/integral-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json';
-import {
   abi as NonfungiblePositionManager_ABI,
   bytecode as NonfungiblePositionManager_BYTECODE,
 } from '@cryptoalgebra/integral-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json';
-
 import {
-  abi as POOL_DEPLOYER_ABI,
-  bytecode as POOL_DEPLOYER_BYTECODE,
-} from '@cryptoalgebra/integral-core/artifacts/contracts/AlgebraPoolDeployer.sol/AlgebraPoolDeployer.json';
+  abi as SWAP_ROUTER_ABI,
+  bytecode as SWAP_ROUTER_BYTECODE,
+} from '@cryptoalgebra/integral-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json';
+import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
+import { getCreateAddress } from 'ethers';
+import { ethers } from 'hardhat';
+
 import {
   abi as ALGEBRA_COMMUNITY_VAULT_ABI,
   bytecode as ALGEBRA_COMMUNITY_VAULT_BYTECODE,
 } from '@cryptoalgebra/integral-core/artifacts/contracts/AlgebraCommunityVault.sol/AlgebraCommunityVault.json';
-
 import {
-  ERC20Mock,
-  Fenix,
-  PairFactoryUpgradeable,
-  TransparentUpgradeableProxy,
-  VotingEscrowUpgradeableV2,
-  PairFactoryUpgradeable__factory,
-  FeesVaultUpgradeable,
-  GaugeFactoryUpgradeable,
-  GaugeUpgradeable,
-  BribeUpgradeable,
-  BribeFactoryUpgradeable,
-  MerklGaugeMiddleman,
-  MerkleDistributionCreatorMock,
+  abi as POOL_DEPLOYER_ABI,
+  bytecode as POOL_DEPLOYER_BYTECODE,
+} from '@cryptoalgebra/integral-core/artifacts/contracts/AlgebraPoolDeployer.sol/AlgebraPoolDeployer.json';
+
+import { NonfungiblePositionManager, SwapRouter } from '@cryptoalgebra/integral-periphery/typechain';
+import { setCode } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { AlgebraCommunityVault, AlgebraFactoryUpgradeable, AlgebraPoolDeployer } from '../../lib/fenix-algebra/src/core/typechain';
+import {
   BlastMock__factory,
-  MinterUpgradeable,
-  Pair,
-  VeBoostUpgradeable,
-  VeFnxDistributorUpgradeable,
   BlastPointsMock,
+  BribeFactoryUpgradeable,
+  BribeUpgradeable,
+  CompoundEmissionExtensionUpgradeable,
+  CompoundEmissionExtensionUpgradeableMock,
+  CompoundVeFNXManagedNFTStrategyUpgradeable,
+  ERC20Mock,
   FeesVaultFactoryUpgradeable,
   FeesVaultFactoryUpgradeable__factory,
+  FeesVaultUpgradeable,
+  Fenix,
+  GaugeFactoryUpgradeable,
+  GaugeUpgradeable,
   ManagedNFTManagerUpgradeable,
+  MerklGaugeMiddleman,
+  MerkleDistributionCreatorMock,
+  MinterUpgradeable,
+  Pair,
+  PairFactoryUpgradeable,
+  PairFactoryUpgradeable__factory,
+  SingelTokenVirtualRewarderUpgradeable,
+  TransparentUpgradeableProxy,
+  VeArtProxy,
+  VeBoostUpgradeable,
+  VeFnxDistributorUpgradeable,
   VoterUpgradeableV2,
   VoterUpgradeableV2__factory,
-  CompoundVeFNXManagedNFTStrategyUpgradeable,
-  SingelTokenVirtualRewarderUpgradeable,
-  VeArtProxy,
+  VotingEscrowUpgradeableV2,
 } from '../../typechain-types';
-import { setCode } from '@nomicfoundation/hardhat-toolbox/network-helpers';
-import { BLAST_PREDEPLOYED_ADDRESS, GaugeType, USDB_PREDEPLOYED_ADDRESS, WETH_PREDEPLOYED_ADDRESS, ZERO_ADDRESS } from './constants';
-import {
-  AlgebraCommunityVault,
-  IAlgebraFactory,
-  AlgebraPoolDeployer,
-  AlgebraFactoryUpgradeable,
-} from '../../lib/fenix-algebra/src/core/typechain';
-import { NonfungiblePositionManager, SwapRouter } from '@cryptoalgebra/integral-periphery/typechain';
 import { ART_RPOXY_PARTS } from '../../utils/ArtProxy';
+import { GaugeType } from './constants';
 
 export type SignersList = {
   deployer: HardhatEthersSigner;
@@ -95,6 +92,7 @@ export type CoreFixtureDeployed = {
   veFnxDistributor: VeFnxDistributorUpgradeable;
   blastPoints: BlastPointsMock;
   managedNFTManager: ManagedNFTManagerUpgradeable;
+  compoundEmissionExtension: CompoundEmissionExtensionUpgradeableMock;
 };
 
 export async function mockBlast() {
@@ -339,6 +337,22 @@ export async function deployGaugeFactory(
   return attached;
 }
 
+export async function deployCompoundEmissionExtension(
+  deployer: HardhatEthersSigner,
+  proxyAdmin: string,
+  blastGovenor: string,
+  voter: string,
+  token: string,
+  votingEscrow: string,
+): Promise<CompoundEmissionExtensionUpgradeable> {
+  const factory = await ethers.getContractFactory('CompoundEmissionExtensionUpgradeableMock');
+  const implementation = await factory.connect(deployer).deploy(blastGovenor);
+  const proxy = await deployTransaperntUpgradeableProxy(deployer, proxyAdmin, await implementation.getAddress());
+  const attached = factory.attach(proxy.target) as any as CompoundEmissionExtensionUpgradeableMock;
+  await attached.connect(deployer).initialize(blastGovenor, voter, token, votingEscrow);
+  return attached;
+}
+
 export async function deployMerklGaugeMiddleman(
   deployer: HardhatEthersSigner,
   governor: string,
@@ -543,6 +557,16 @@ export async function completeFixture(): Promise<CoreFixtureDeployed> {
 
   const resultArtProxy = await deployArtProxy(signers.deployer, votingEscrow.target.toString(), managedNFTManager.target.toString());
 
+  let compoundEmissionExtension = await deployCompoundEmissionExtension(
+    signers.deployer,
+    signers.proxyAdmin.address,
+    signers.blastGovernor.address,
+    await voter.getAddress(),
+    await fenix.getAddress(),
+    await votingEscrow.getAddress(),
+  );
+
+  await voter.updateAddress('compoundEmissionExtension', compoundEmissionExtension.target);
   return {
     signers: signers,
     voter: voter,
@@ -564,6 +588,7 @@ export async function completeFixture(): Promise<CoreFixtureDeployed> {
     veFnxDistributor: veFnxDistributor,
     blastPoints: mockBlastPoints,
     managedNFTManager: managedNFTManager,
+    compoundEmissionExtension: compoundEmissionExtension,
   };
 }
 

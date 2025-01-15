@@ -180,7 +180,7 @@ describe('Voter change governance/admin functionality', function () {
             managedTokenIdForAttach: 0,
           },
         ),
-      ).to.be.revertedWith('users containes no only caller');
+      ).to.be.revertedWithCustomError(voter, 'InvalidMerklDataUser');
       await expect(
         voter.aggregateClaim(
           [],
@@ -197,7 +197,7 @@ describe('Voter change governance/admin functionality', function () {
             managedTokenIdForAttach: 0,
           },
         ),
-      ).to.be.revertedWith('users containes no only caller');
+      ).to.be.revertedWithCustomError(voter, 'InvalidMerklDataUser');
     });
 
     describe('success claim', async () => {

@@ -18,6 +18,8 @@ import {IMerklDistributor} from "../integration/interfaces/IMerklDistributor.sol
 import {IManagedNFTManager} from "../nest/interfaces/IManagedNFTManager.sol";
 import {IBribe} from "../bribes/interfaces/IBribe.sol";
 import {IGauge} from "../gauges/interfaces/IGauge.sol";
+import {ICompoundEmissionExtension} from "./interfaces/ICompoundEmissionExtension.sol";
+
 import "./libraries/LibVoterErrors.sol";
 import "./interfaces/IVoter.sol";
 
@@ -118,9 +120,12 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
     /// @dev If set to true, voting functionality is paused, preventing votes from being cast or updated.
     bool public votingPaused;
 
-    /// @notice Error to indicate that voting is currently paused.
-    /// @dev Reverts the transaction if any function protected by `whenNotVotingPaused` is called while voting is paused.
-    error DisableDuringVotingPaused();
+    /// @notice Address of the extension contract for compound emission logic.
+    address public compoundEmissionExtension;
+
+    /*//////////////////////////////////////////////////////////////
+                             Modifiers
+    //////////////////////////////////////////////////////////////*/
 
     /// @notice Modifier to check if voting is not paused.
     /// @dev Reverts with `VotingPaused` if `votingPaused` is true, preventing the function execution.
@@ -130,14 +135,15 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
         }
         _;
     }
-    /**
-     * @notice Error thrown when the provided `percentageToLock` is invalid.
-     */
-    error InvalidPercentageToLock();
 
-    /*//////////////////////////////////////////////////////////////
-                             Modifiers
-    //////////////////////////////////////////////////////////////*/
+    /**
+     * @notice Modifier to ensure that only the VotingEscrow contract can call the method.
+     * @dev Reverts with `AccessDenied()` if the caller is not the VotingEscrow.
+     */
+    modifier onlyVotingEscrow() {
+        _checkSender(votingEscrow);
+        _;
+    }
     /**
      * @notice Ensures that the caller is either the owner or approved for the specified NFT.
      * @param tokenId_ The ID of the NFT to check.
@@ -202,6 +208,8 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
             v2GaugeFactory = value_;
         } else if (key == 0x7ebf69e1e15f4a4db2cb161251ab5c47f9f68d65713eba9542fedffbe59b7931) {
             v3GaugeFactory = value_;
+        } else if (key == 0xf2c7153a0177b0931d063db7d98c85897389bc03724b294be19358ec99cd7ac5) {
+            compoundEmissionExtension = value_;
         } else {
             revert InvalidAddressKey();
         }
@@ -399,9 +407,8 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
      */
 
     function notifyRewardAmount(uint256 amount_) external {
-        if (_msgSender() != minter) {
-            revert AccessDenied();
-        }
+        _checkSender(minter);
+
         IERC20Upgradeable(token).safeTransferFrom(_msgSender(), address(this), amount_);
         uint256 weightAt = totalWeightsPerEpoch[epochTimestamp() - _WEEK]; // minter call notify after updates active_period, loads votes - 1 week
         if (weightAt > 0) {
@@ -529,12 +536,10 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
 
     /**
      * @notice Claims rewards from multiple gauges.
-     * @param _gauges An array of gauge addresses to claim rewards from.
+     * @param gauges_ An array of gauge addresses to claim rewards from.
      */
-    function claimRewards(address[] memory _gauges) public {
-        for (uint256 i; i < _gauges.length; i++) {
-            IGauge(_gauges[i]).getReward(_msgSender());
-        }
+    function claimRewards(address[] memory gauges_) public {
+        _claimGaugesRewardsFor(_msgSender(), gauges_);
     }
 
     /**
@@ -612,14 +617,79 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
      * @param managedTokenId_ The ID of the managed token receiving the voting power.
      * @custom:error AccessDenied Thrown if the caller is not the Voting Escrow contract.
      */
-    function onDepositToManagedNFT(uint256 /**tokenId_**/, uint256 managedTokenId_) external nonReentrant whenNotVotingPaused {
-        address votingEscrowCache = votingEscrow;
-        if (_msgSender() != votingEscrowCache) {
-            revert AccessDenied();
-        }
+    function onDepositToManagedNFT(
+        uint256 /**tokenId_**/,
+        uint256 managedTokenId_
+    ) external nonReentrant whenNotVotingPaused onlyVotingEscrow {
         _checkVoteWindow();
         _poke(managedTokenId_);
         _updateLastVotedTimestamp(managedTokenId_);
+    }
+
+    /**
+     * @notice Called after a token transfer to update external logic or linkage.
+     * @dev Typically invoked by the VotingEscrow contract whenever a veNFT changes ownership.
+     *      Implementations can handle scenario-specific logic such as emission extension or target lock updates.
+     * @param from_ The address from which the token is transferred.
+     * @param to_ The address to which the token is transferred.
+     * @param tokenId_ The ID of the token being transferred.
+     */
+    function onAfterTokenTransfer(address from_, address to_, uint256 tokenId_) external nonReentrant onlyVotingEscrow {
+        ICompoundEmissionExtension compoundEmissionExtensionCache = ICompoundEmissionExtension(compoundEmissionExtension);
+        if (address(compoundEmissionExtensionCache) != address(0)) {
+            compoundEmissionExtensionCache.changeEmissionTargetLockId(from_, tokenId_, 0);
+        }
+    }
+
+    /**
+     * @notice Called after two veNFT tokens are merged into one.
+     * @dev Typically invoked by the VotingEscrow contract during the merge operation.
+     *      Implementations can adjust bookkeeping, reward balances, or other logic related to the merged tokens.
+     * @param fromTokenId_ The ID of the token that is merged (source).
+     * @param toTokenId_ The ID of the token that remains (destination).
+     */
+    function onAfterTokenMerge(uint256 fromTokenId_, uint256 toTokenId_) external nonReentrant onlyVotingEscrow {
+        ICompoundEmissionExtension compoundEmissionExtensionCache = ICompoundEmissionExtension(compoundEmissionExtension);
+        if (address(compoundEmissionExtensionCache) != address(0)) {
+            compoundEmissionExtensionCache.changeEmissionTargetLockId(
+                IVotingEscrow(votingEscrow).ownerOf(toTokenId_),
+                fromTokenId_,
+                toTokenId_
+            );
+        }
+    }
+
+    /**
+     * @notice Called during a compound emission claim process to handle gauge rewards, Merkl claims, and any locked portion.
+     * @dev Typically invoked by an extension contract that batches gauge reward claims and Merkl-based airdrops,
+     *      then calculates the amount to be locked and optionally transfers it for locking.
+     * @param target_ The user address on whose behalf rewards are being claimed.
+     * @param gauges_ The gauges to claim rewards from.
+     * @param merkl_ The Merkl claim parameters, including arrays of users, tokens, amounts, and proofs.
+     * @return amountOut The amount of tokens that should be locked by the extension, if any.
+     */
+    function onCompoundEmissionClaim(
+        address target_,
+        address[] calldata gauges_,
+        AggregateClaimMerklDataParams calldata merkl_
+    ) external nonReentrant returns (uint256 amountOut) {
+        ICompoundEmissionExtension compoundEmissionExtensionCache = ICompoundEmissionExtension(compoundEmissionExtension);
+        _checkSender(address(compoundEmissionExtension));
+
+        IERC20Upgradeable tokenCache = IERC20Upgradeable(token);
+
+        uint256 balanceBefore = tokenCache.balanceOf(target_);
+
+        _claimGaugesRewardsFor(target_, gauges_);
+
+        _claimMerklRewardsFor(target_, merkl_);
+
+        amountOut = compoundEmissionExtensionCache.getAmountOutToLocks(target_, tokenCache.balanceOf(target_) - balanceBefore);
+
+        if (amountOut > 0) {
+            tokenCache.safeTransferFrom(target_, address(this), amountOut);
+            tokenCache.safeApprove(address(compoundEmissionExtensionCache), amountOut);
+        }
     }
 
     /**
@@ -651,24 +721,17 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
         IERC20Upgradeable tokenCache = IERC20Upgradeable(token);
         uint256 userBalanceBefore = aggregateCreateLock_.percentageToLock > 0 ? tokenCache.balanceOf(_msgSender()) : 0;
         {
-            if (gauges_.length > 0) {
-                claimRewards(gauges_);
-            }
+            _claimGaugesRewardsFor(_msgSender(), gauges_);
+
             if (bribes_.bribes.length > 0) {
                 claimBribes(bribes_.bribes, bribes_.tokens);
             }
             if (bribesByTokenId_.bribes.length > 0) {
                 claimBribes(bribesByTokenId_.bribes, bribesByTokenId_.tokens, bribesByTokenId_.tokenId);
             }
-            if (merkl_.users.length > 0) {
-                for (uint256 i; i < merkl_.users.length; ) {
-                    require(merkl_.users[i] == _msgSender(), "users containes no only caller");
-                    unchecked {
-                        i++;
-                    }
-                }
-                IMerklDistributor(merklDistributor).claim(merkl_.users, merkl_.tokens, merkl_.amounts, merkl_.proofs);
-            }
+
+            _claimMerklRewardsFor(_msgSender(), merkl_);
+
             if (splitMerklAidrop_.amount > 0) {
                 IVeFnxSplitMerklAidrop(veFnxMerklAidrop).claimFor(
                     _msgSender(),
@@ -924,6 +987,40 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
     }
 
     /**
+     * @notice Internal function to claim Merkl-based rewards on behalf of `target_`.
+     * @param target_ The address for which to claim.
+     * @param merklParams_ The parameters for Merkl-based claiming.
+     * @custom:error InvalidMerklDataUser Thrown if any of the users in `merklParams_` is not `target_`.
+     */
+    function _claimMerklRewardsFor(address target_, AggregateClaimMerklDataParams calldata merklParams_) internal {
+        for (uint256 i; i < merklParams_.users.length; ) {
+            if (merklParams_.users[i] != target_) {
+                revert InvalidMerklDataUser();
+            }
+            unchecked {
+                i++;
+            }
+        }
+        if (merklParams_.users.length > 0) {
+            IMerklDistributor(merklDistributor).claim(merklParams_.users, merklParams_.tokens, merklParams_.amounts, merklParams_.proofs);
+        }
+    }
+
+    /**
+     * @notice Internal function to claim gauge rewards on behalf of `target_`.
+     * @param target_ The address for which to claim.
+     * @param gauges_ The array of gauge addresses.
+     */
+    function _claimGaugesRewardsFor(address target_, address[] memory gauges_) internal {
+        for (uint256 i; i < gauges_.length; ) {
+            IGauge(gauges_[i]).getReward(target_);
+            unchecked {
+                i++;
+            }
+        }
+    }
+
+    /**
      * @dev Ensures that the current time is within the allowed voting window.
      */
     function _checkVoteWindow() internal view {
@@ -959,6 +1056,17 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
     function _checkVoteDelay(uint256 tokenId_) internal view {
         if (block.timestamp < lastVotedTimestamps[tokenId_] + voteDelay) {
             revert VoteDelay();
+        }
+    }
+
+    /**
+     * @notice Internal function to verify that `_msgSender()` matches `expected_` or that `expected_` is not zero.
+     * @param expected_ The address expected to be `_msgSender()`.
+     * @custom:error AccessDenied Thrown if `_msgSender()` is not `expected_`.
+     */
+    function _checkSender(address expected_) internal view {
+        if (_msgSender() != expected_ || expected_ == address(0)) {
+            revert AccessDenied();
         }
     }
 

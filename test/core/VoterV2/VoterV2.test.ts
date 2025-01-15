@@ -1,15 +1,9 @@
-import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
-import { loadFixture, mine, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
+import { loadFixture, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import {
-  ERC20Mock,
-  SingelTokenBuybackUpgradeableMock__factory,
-  VoterUpgradeableV2,
-  VotingEscrowUpgradeableV2,
-} from '../../../typechain-types';
-import completeFixture, { CoreFixtureDeployed, deployERC20MockToken, mockBlast, SignersList } from '../../utils/coreFixture';
+import { ERC20Mock, VoterUpgradeableV2, VotingEscrowUpgradeableV2 } from '../../../typechain-types';
 import { ERRORS, getAccessControlError } from '../../utils/constants';
+import completeFixture, { CoreFixtureDeployed, deployERC20MockToken, SignersList } from '../../utils/coreFixture';
 
 describe('VotingEscrow_V2', function () {
   let VotingEscrow: VotingEscrowUpgradeableV2;
@@ -66,6 +60,36 @@ describe('VotingEscrow_V2', function () {
       it('distributionWindowDuration', async () => {
         expect(await Voter.distributionWindowDuration()).to.be.eq(3600);
       });
+    });
+  });
+
+  describe('shoulf fail calls, if not pass checkSender', async () => {
+    it('#notifyRewardAmount', async () => {
+      await expect(Voter.notifyRewardAmount(1)).to.be.revertedWithCustomError(Voter, 'AccessDenied');
+    });
+
+    it('#onDepositToManagedNFT', async () => {
+      await expect(Voter.onDepositToManagedNFT(1, 1)).to.be.revertedWithCustomError(Voter, 'AccessDenied');
+    });
+
+    it('#onAfterTokenTransfer', async () => {
+      await expect(Voter.onAfterTokenTransfer(ethers.ZeroAddress, ethers.ZeroAddress, 1)).to.be.revertedWithCustomError(
+        Voter,
+        'AccessDenied',
+      );
+    });
+
+    it('#onAfterTokenMerge', async () => {
+      await expect(Voter.onAfterTokenTransfer(ethers.ZeroAddress, ethers.ZeroAddress, 1)).to.be.revertedWithCustomError(
+        Voter,
+        'AccessDenied',
+      );
+    });
+
+    it('#onCompoundEmissionClaim', async () => {
+      await expect(
+        Voter.onCompoundEmissionClaim(ethers.ZeroAddress, [], { users: [ethers.ZeroAddress], proofs: [], tokens: [], amounts: [] }),
+      ).to.be.revertedWithCustomError(Voter, 'AccessDenied');
     });
   });
 
@@ -216,6 +240,7 @@ describe('VotingEscrow_V2', function () {
           await Voter.updateAddress('v3PoolFactory', ethers.ZeroAddress);
           await Voter.updateAddress('v2GaugeFactory', ethers.ZeroAddress);
           await Voter.updateAddress('v3GaugeFactory', ethers.ZeroAddress);
+          await Voter.updateAddress('compoundEmissionExtension', ethers.ZeroAddress);
 
           expect(await Voter.minter()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.bribeFactory()).to.be.eq(ethers.ZeroAddress);
@@ -226,6 +251,23 @@ describe('VotingEscrow_V2', function () {
           expect(await Voter.v3PoolFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v2GaugeFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v3GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(ethers.ZeroAddress);
+        });
+
+        it('compoundEmissionExtension', async () => {
+          await expect(Voter.updateAddress('compoundEmissionExtension', deployed.compoundEmissionExtension.target))
+            .to.be.emit(Voter, 'UpdateAddress')
+            .withArgs('compoundEmissionExtension', deployed.compoundEmissionExtension.target);
+          expect(await Voter.minter()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.bribeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.merklDistributor()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.veFnxMerklAidrop()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.managedNFTManager()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.v2PoolFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.v3PoolFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.v2GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.v3GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(deployed.compoundEmissionExtension.target);
         });
 
         it('minter', async () => {
@@ -241,6 +283,7 @@ describe('VotingEscrow_V2', function () {
           expect(await Voter.v3PoolFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v2GaugeFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v3GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(ethers.ZeroAddress);
         });
 
         it('bribeFactory', async () => {
@@ -256,6 +299,7 @@ describe('VotingEscrow_V2', function () {
           expect(await Voter.v3PoolFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v2GaugeFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v3GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(ethers.ZeroAddress);
         });
 
         it('merklDistributor', async () => {
@@ -271,6 +315,7 @@ describe('VotingEscrow_V2', function () {
           expect(await Voter.v3PoolFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v2GaugeFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v3GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(ethers.ZeroAddress);
         });
 
         it('veFnxMerklAidrop', async () => {
@@ -286,6 +331,7 @@ describe('VotingEscrow_V2', function () {
           expect(await Voter.v3PoolFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v2GaugeFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v3GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(ethers.ZeroAddress);
         });
 
         it('managedNFTManager', async () => {
@@ -301,6 +347,7 @@ describe('VotingEscrow_V2', function () {
           expect(await Voter.v3PoolFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v2GaugeFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v3GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(ethers.ZeroAddress);
         });
 
         it('v2PoolFactory', async () => {
@@ -316,6 +363,7 @@ describe('VotingEscrow_V2', function () {
           expect(await Voter.v3PoolFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v2GaugeFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v3GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(ethers.ZeroAddress);
         });
 
         it('v3PoolFactory', async () => {
@@ -331,6 +379,7 @@ describe('VotingEscrow_V2', function () {
           expect(await Voter.v3PoolFactory()).to.be.eq(TEST_ADDRESS);
           expect(await Voter.v2GaugeFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v3GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(ethers.ZeroAddress);
         });
         it('v2GaugeFactory', async () => {
           await expect(Voter.updateAddress('v2GaugeFactory', TEST_ADDRESS))
@@ -345,6 +394,7 @@ describe('VotingEscrow_V2', function () {
           expect(await Voter.v3PoolFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v2GaugeFactory()).to.be.eq(TEST_ADDRESS);
           expect(await Voter.v3GaugeFactory()).to.be.eq(ethers.ZeroAddress);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(ethers.ZeroAddress);
         });
         it('v3GaugeFactory', async () => {
           await expect(Voter.updateAddress('v3GaugeFactory', TEST_ADDRESS))
@@ -359,6 +409,7 @@ describe('VotingEscrow_V2', function () {
           expect(await Voter.v3PoolFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v2GaugeFactory()).to.be.eq(ethers.ZeroAddress);
           expect(await Voter.v3GaugeFactory()).to.be.eq(TEST_ADDRESS);
+          expect(await Voter.compoundEmissionExtension()).to.be.eq(ethers.ZeroAddress);
         });
       });
     });

@@ -19,4 +19,15 @@ contract VoterMock {
     function notifyRewardAmount(uint256 amount_) external {
         ERC20(token).transferFrom(msg.sender, address(this), amount_);
     }
+
+    event OnAfterTokenTransfer(address caller_, address from_, address to_, uint256 tokenId_);
+    event OnAfterTokenMerge(address caller_, uint256 fromTokenId_, uint256 toTokenId_);
+
+    function onAfterTokenTransfer(address from_, address to_, uint256 tokenId_) external {
+        emit OnAfterTokenTransfer(msg.sender, from_, to_, tokenId_);
+    }
+
+    function onAfterTokenMerge(uint256 fromTokenId_, uint256 toTokenId_) external {
+        emit OnAfterTokenMerge(msg.sender, fromTokenId_, toTokenId_);
+    }
 }

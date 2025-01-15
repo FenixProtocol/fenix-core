@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0;
+import {IAccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/IAccessControlUpgradeable.sol";
 
-interface IVoter {
+interface IVoter is IAccessControlUpgradeable {
     /**
      * @notice Represents the state of a gauge.
      * @param isGauge Indicates if the address is a gauge.
@@ -496,4 +497,38 @@ interface IVoter {
      * @return The timestamp of the last vote.
      */
     function lastVotedTimestamps(uint256 tokenId) external view returns (uint256);
+
+    /**
+     * @notice Called after a token transfer to update external logic or linkage.
+     * @dev Typically invoked by the VotingEscrow contract whenever a veNFT changes ownership.
+     *      Implementations can handle scenario-specific logic such as emission extension or target lock updates.
+     * @param from_ The address from which the token is transferred.
+     * @param to_ The address to which the token is transferred.
+     * @param tokenId_ The ID of the token being transferred.
+     */
+    function onAfterTokenTransfer(address from_, address to_, uint256 tokenId_) external;
+
+    /**
+     * @notice Called after two veNFT tokens are merged into one.
+     * @dev Typically invoked by the VotingEscrow contract during the merge operation.
+     *      Implementations can adjust bookkeeping, reward balances, or other logic related to the merged tokens.
+     * @param fromTokenId_ The ID of the token that is merged (source).
+     * @param toTokenId_ The ID of the token that remains (destination).
+     */
+    function onAfterTokenMerge(uint256 fromTokenId_, uint256 toTokenId_) external;
+
+    /**
+     * @notice Called during a compound emission claim process to handle gauge rewards, Merkl claims, and any locked portion.
+     * @dev Typically invoked by an extension contract that batches gauge reward claims and Merkl-based airdrops,
+     *      then calculates the amount to be locked and optionally transfers it for locking.
+     * @param target_ The user address on whose behalf rewards are being claimed.
+     * @param gauges_ The gauges to claim rewards from.
+     * @param merkl_ The Merkl claim parameters, including arrays of users, tokens, amounts, and proofs.
+     * @return amountOut The amount of tokens that should be locked by the extension, if any.
+     */
+    function onCompoundEmissionClaim(
+        address target_,
+        address[] calldata gauges_,
+        AggregateClaimMerklDataParams calldata merkl_
+    ) external returns (uint256 amountOut);
 }

@@ -75,3 +75,18 @@ error DistributionWindow();
  * @notice Reverts when the try create gauge for pool without setup fees vault.
  */
 error PoolNotInitialized();
+
+/**
+ * @notice Reverts if voting is currently paused and an action that requires active voting is attempted.
+ */
+error DisableDuringVotingPaused();
+
+/**
+ * @notice Reverts if the user data provided in a Merkl claim does not match the expected target address.
+ */
+error InvalidMerklDataUser();
+
+/**
+ * @notice Reverts if the percentage to lock (e.g., in a veNFT lock) exceeds the maximum permissible value (1e18 = 100%).
+ */
+error InvalidPercentageToLock();
