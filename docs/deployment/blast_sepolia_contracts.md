@@ -46,7 +46,7 @@ External:
 | VeArtProxyStatic | 0xbDf98125C4012D0E8871B4686b5cFC8d1e70EE4e |
 | CustomBribeRewardRouter_Proxy| 0x6309bc679485A60C60f2e415C893dEE315F87548 |
 | BribeVeFNXRewardToken_Proxy| 0x7d31b330E84fF067B7c8A32cdD6166c7D517B46E |
-
+| CompoundEmissionExtensionUpgradeable_Proxy | 0x15d61eAC5502dc146BB7b0A7d58869D3AC6C95dA |
 
 ## Implementations for Proxy
 | Contract Name                                           | Address                                      |
@@ -66,8 +66,8 @@ External:
 | VeFnxSplitMerklAidropUpgradeable_Implementation         | 0xc32160bC7841aedB9b594DB6641320746bb6aAB1   |
 | UtilsUpgradeable_Implementation                         | 0x7A2A229bB0FC58628448437Cc94db06FF1730550   |
 | MinimalLinearVestingUpgradeable_Implementation          | 0x72B6a4200E66530C3e9D8Bc9bE4769119B5305E7   |
-| VotingEscrowUpgradeable_Implementation                  | 0xCAa20e517D6E6ea83CCbf6413455eb6FDF04eB3F   |
-| VoterUpgradeable_Implementation                         | 0x950e9F6b7BbB039651894E4582EeB903A57a431c   |
+| VotingEscrowUpgradeable_Implementation                  | 0xe6A622a579352C7F50D18D51018F84B9c7Bb2B23   |
+| VoterUpgradeable_Implementation                         | 0x74A9FF96ed2D8476A3fdCB2Cc7c9EDcCA801e03d   |
 | BribeUpgradeable_Implementation                         | 0x4b7EF81cB931b50b20FdB04439515aC52a1CFC2D   |
 | BribeFactoryUpgradeable_Implementation                  | 0xa76C4Cd922541d3b7680Dca1b4d025825605C1Ca   |
 | GaugeUpgradeable_V2Pools_Implementation                         | 0xD9709Ef4b0D0A60655830E16CFBF6ADaE756caA5   |
@@ -84,7 +84,7 @@ External:
 | VeFnxDistributorUpgradeable_V2_Implementation | 0x398c3bCeFe2cE120AEd0AA4BAdE01C3660853f2A |
 |BribeVeFNXRewardToken_Implementation | 0x380D7770fdeb801623E7dc4D51a6F16b79432F08 |
 | CustomBribeRewardRouter_Implementation | 0x3529a5B6D21cA1dA312F8bCBBB2aE2a9802e7a46|
-
+| CompoundEmissionExtensionUpgradeable_Implementation | 0x3DB6bc4F75bfB287Ee24cd7656bc91105d3f6393 |
 ### Tokens
 - `0x9e0f170B90b66C8a0f32A2FDBfc06FC479970e3a` - fnUSDT
 - `0x9Fe9D260262331807D0aa0fb06Fda1fa1b5E2ce5` - fnTOK

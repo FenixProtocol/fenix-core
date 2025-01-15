@@ -78,6 +78,8 @@ export enum AliasDeployedContracts {
   BribeVeFNXRewardToken_Implementation = 'BribeVeFNXRewardToken_Implementation',
   CustomBribeRewardRouter_Proxy = 'CustomBribeRewardRouter_Proxy',
   CustomBribeRewardRouter_Implementation = 'CustomBribeRewardRouter_Implementation',
+  CompoundEmissionExtensionUpgradeable_Proxy = 'CompoundEmissionExtensionUpgradeable_Proxy',
+  CompoundEmissionExtensionUpgradeable_Implementation = 'CompoundEmissionExtensionUpgradeable_Implementation',
 }
 
 enum ThirdPart {
@@ -131,6 +133,7 @@ enum ContractsInstanceName {
   OpenOceanVeNftDirectBuyer = 'OpenOceanVeNftDirectBuyer',
   BribeVeFNXRewardToken = 'BribeVeFNXRewardToken',
   CustomBribeRewardRouter = 'CustomBribeRewardRouter',
+  CompoundEmissionExtensionUpgradeable = 'CompoundEmissionExtensionUpgradeable',
 }
 
 enum ContractsMocksInstanceName {
