@@ -117,7 +117,7 @@
 | **AlgebraFNXPriceProviderUpgradeable_Implementation** | `0x2c166ab0429e8f10d806FF86eddb59Eb2548B311` |
 | **MinimalLinearVestingUpgradeable_Implementation** | `0xA4C830D9C19b6b881408cf74e00Cff1ad3800270` |
 | **SingelTokenVirtualRewarderUpgradeable_Implementation** | `0xA2b8815b1761Ea8cc351Ca6619d1AC2998561196` |
-| **CompoundVeFNXManagedNFTStrategyFactoryUpgradeable_Implementation** | `0xefE86ABbF1C18Df85a77e80cC60dFb4d46365CF1` |
+| **CompoundVeFNXManagedNFTStrategyFactoryUpgradeable_Implementation** | `0xefE86ABbF1C18Df85a77e80cC60dFb4d46365CF1` (future: 0xd0ba235723dA5Ca7a8B5e6eD0573862d18834edc) |
 | **RouterV2PathProviderUpgradeable_Implementation** | `0xbD7852f7e21bc23944A2809315385733C734369c` |
 | **ManagedNFTManagerUpgradeable_Implementation** | `0xA22bd1a538eED9C6914874DeEdc7033aCF8FFbBA`) |
 | **PairAPIUpgradeable_Implementation** | `0x2f0044922D9a58F8EcC78D4f898eA64FCa364E71` |

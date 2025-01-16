@@ -78,7 +78,7 @@ External:
 | VeNFTAPIUpgradeable_Implementation                      | 0x11c3173830d4968C5F0ac00BC29489e41123554f   |
 | RewardAPIUpgradeable_Implementation                     | 0x725D1540c0Fd73dBe34287490dd1C37414cf7E09   |
 | VeBoostUpgradeable_Implementation                       | 0x5D384d12fFBB876DbFd18EC2F8C08d34FB057590   |
-| CompoundVeFNXManagedNFTStrategyUpgradeable_Implementation| 0xB88Cee7C9EdFe696a2a2581b5179cfCd208d3c77   |
+| CompoundVeFNXManagedNFTStrategyUpgradeable_Implementation| 0x6DFA76E94fb7a011A499252E216FE6C1B9Faa768   |
 | CompoundVeFNXManagedNFTStrategyFactoryUpgradeable_Implementation | 0xe2262A0f2FEcB10C33C5344aef485a09CE5CbdB8  |
 | VeFnxDistributorUpgradeable_Implementation | 0xDE303e84118ed3fFbe5424123a0189DA166A3858 |
 | VeFnxDistributorUpgradeable_V2_Implementation | 0x398c3bCeFe2cE120AEd0AA4BAdE01C3660853f2A |
