@@ -35,6 +35,7 @@ import {
   CompoundEmissionExtensionUpgradeableMock,
   CompoundVeFNXManagedNFTStrategyUpgradeable,
   ERC20Mock,
+  ERC721PresetMinterPauserAutoId,
   FeesVaultFactoryUpgradeable,
   FeesVaultFactoryUpgradeable__factory,
   FeesVaultUpgradeable,
@@ -101,6 +102,15 @@ export async function mockBlast() {
 
   return blastPointsMock;
 }
+export async function deployERC721MockToken(
+  deployer: HardhatEthersSigner,
+  name: string,
+  symbol: string,
+): Promise<ERC721PresetMinterPauserAutoId> {
+  const factory = await ethers.getContractFactory('ERC721PresetMinterPauserAutoId');
+  return await factory.connect(deployer).deploy(name, symbol, '');
+}
+
 export async function deployERC20MockToken(
   deployer: HardhatEthersSigner,
   name: string,

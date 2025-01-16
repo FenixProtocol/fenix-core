@@ -147,6 +147,8 @@ describe('Nest Main Contract', function () {
 
     gauge = await voter.poolToGauge(USDT_WETH_PAIR);
     bribe = await ethers.getContractAt('BribeUpgradeable', (await voter.gaugesState(gauge)).externalBribe);
+
+    await managedNFTManager.setStrategyFlags(firstStrategy, 30);
   });
 
   it('check state before', async () => {

@@ -108,6 +108,15 @@
      * @param amount The amount of the token that was recovered.
      */
     event Erc20Recover(address indexed caller, address indexed recipient, address indexed token, uint256 amount);
+
+        /**
+     * @notice Recovers specified NFT tokens from this contract to a given recipient.
+     * @param recipient_ The address receiving the recovered NFTs.
+     * @param token_     The NFT contract address (e.g. `votingEscrow` or other ERC721).
+     * @param tokenIds_  The list of NFT IDs to transfer.
+     */
+    function erc721Recover(address recipient_, address token_, uint256[] calldata tokenIds_) external;
+
 ```
 
 ### CompoundStrategy.VirtualRewarder

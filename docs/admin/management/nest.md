@@ -38,12 +38,26 @@ This document provides a detailed explanation of the workflow for compounding th
    - **Parameters**:
      - `token`: The address of the ERC20 token to recover.
      - `recipient`: The address where the recovered tokens should be sent.
+4. **Withdraw Necessary veNFT Tokens/ERC721 Using `erc721Recover()`**
 
-4. **Swap Tokens for `FNX`**
+   To continue, the necessary tokens need to be withdrawn from the strategy for swapping/sellins. Use the `erc721Recover()` function on the `CompoundVeFNXManagedNFTStrategyUpgradeable` contract to withdraw the required NFTs (excluding `managedNFT`) from the strategy. This step must be repeated for each Nest strategy.
+   
+   - **Function Signature**:
+     ```solidity
+    /**
+     * @notice Recovers specified NFT tokens from this contract to a given recipient.
+     * @param recipient_ The address receiving the recovered NFTs.
+     * @param token_     The NFT contract address (e.g. `votingEscrow` or other ERC721).
+     * @param tokenIds_  The list of NFT IDs to transfer.
+     */
+    function erc721Recover(address recipient_, address token_, uint256[] calldata tokenIds_) external;
+     ```
+
+5. **Swap Tokens for `FNX`**
 
    With the required tokens in hand, proceed to swap these tokens for `FENIX` (`FNX`). This swap can be performed through an on-chain or off-chain mechanism, depending on the liquidity and availability of suitable decentralized exchange routes. The goal is to maximize the amount of `FNX` obtained from the other tokens. This step must be repeated for each Nest strategy.
 
-5. **Transfer `FNX` to the Strategy**
+6. **Transfer `FNX` to the Strategy**
 
    Once the tokens are swapped for `FNX`, transfer the acquired `FNX` tokens back to the `CompoundVeFNXManagedNFTStrategyUpgradeable` contract. This ensures that the `FNX` tokens are available for the next step, where the compounding process will take place. This step must be repeated for each Nest strategy.
 
@@ -55,6 +69,9 @@ This document provides a detailed explanation of the workflow for compounding th
      ```solidity
      function compound() external;
      ```
+7. **Call `compoundVeNFTsAll() or compoundVeNFTs(uint256[] calldata tokenIds_)` to Distribute Compound Rewards**
+
+   Finally, call the `compoundVeNFTsAll()` or `compoundVeNFTs(uint256[] calldata tokenIds_)` function on the `CompoundVeFNXManagedNFTStrategyUpgradeable` contract to mint the reward in the form of veNFT into mVeNFT token and issue the amount of minted reward as compound reward to users
 
 ### Example
 ```
@@ -80,6 +97,8 @@ FNX.transfer(CompoundVeFNXManagedNFTStrategyUpgradeable, swapOutAmount);
 
 // Reinvest FNX tokens back into the strategy to compound rewards
 CompoundVeFNXManagedNFTStrategyUpgradeable.compound();
+
+CompoundVeFNXManagedNFTStrategyUpgradeable.compoundVeNFTsAll();
 
 // Repeat the same process for each strategy
 ...

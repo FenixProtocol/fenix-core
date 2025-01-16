@@ -1,11 +1,12 @@
 import { HardhatEthersSigner } from '@nomicfoundation/hardhat-ethers/signers';
 import { loadFixture, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
-import { expect } from 'chai';
+import { expect, use } from 'chai';
 import { ethers } from 'hardhat';
 import {
   CompoundVeFNXManagedNFTStrategyFactoryUpgradeable,
   CompoundVeFNXManagedNFTStrategyFactoryUpgradeable__factory,
   CompoundVeFNXManagedNFTStrategyUpgradeable,
+  ManagedNFTManagerMock__factory,
   ManagedNFTManagerUpgradeable,
   RouterV2,
   RouterV2PathProviderUpgradeable,
@@ -16,8 +17,10 @@ import completeFixture, {
   CoreFixtureDeployed,
   SignersList,
   deployERC20MockToken,
+  deployERC721MockToken,
   deployTransaperntUpgradeableProxy,
 } from '../utils/coreFixture';
+import { ContractTransactionResponse } from 'ethers';
 
 describe('CompoundVeFNXManagedStrategy Contract', function () {
   const _WEEK = 86400 * 7;
@@ -28,10 +31,6 @@ describe('CompoundVeFNXManagedStrategy Contract', function () {
 
   async function nextEpoch() {
     return Math.floor((await currentEpoch()) + _WEEK);
-  }
-
-  async function previuesEpoch() {
-    return Math.floor((await currentEpoch()) - _WEEK);
   }
 
   let signers: SignersList;
@@ -246,7 +245,13 @@ describe('CompoundVeFNXManagedStrategy Contract', function () {
   });
 
   describe('#compound', async () => {
-    it('can be called by anyone and to revert if zero fenix balance', async () => {
+    it('should fail if try called by anyone without public flag', async () => {
+      expect(await managedNFTManager.getStrategyFlags(firstStrategy)).to.be.eq(0);
+      await expect(firstStrategy.connect(signers.otherUser1).compound()).to.be.revertedWithCustomError(firstStrategy, 'AccessDenied');
+    });
+
+    it('can be called by anyone and not revert if zero fenix balance, if flag setup', async () => {
+      await managedNFTManager.setStrategyFlags(firstStrategy, 4);
       await firstStrategy.connect(signers.otherUser1).compound();
     });
 
@@ -257,6 +262,8 @@ describe('CompoundVeFNXManagedStrategy Contract', function () {
 
       expect(await deployed.fenix.balanceOf(firstStrategy.target)).to.be.eq(ethers.parseEther('55'));
       expect(await deployed.votingEscrow.balanceOfNFT(managedNftId)).to.be.eq(ZERO);
+      await managedNFTManager.setStrategyFlags(firstStrategy, 4);
+
       let tx = await firstStrategy.connect(signers.otherUser1).compound();
       await expect(tx)
         .to.be.emit(virtualRewarder, 'NotifyReward')
@@ -269,6 +276,283 @@ describe('CompoundVeFNXManagedStrategy Contract', function () {
       expect(await deployed.fenix.balanceOf(deployed.votingEscrow.target)).to.be.eq(ethers.parseEther('56')); // 55 for managed + 1 from user nft id
     });
   });
+
+  describe('#compoundVeNFTs', async () => {
+    describe('Should fail if', async () => {
+      it('user try call compound buy flag for public compound not setup', async () => {
+        await expect(firstStrategy.connect(signers.otherUser1).compoundVeNFTs([])).to.be.revertedWithCustomError(
+          firstStrategy,
+          'AccessDenied',
+        );
+      });
+      it('try compound managed nft id', async () => {
+        await expect(firstStrategy.connect(signers.deployer).compoundVeNFTs([managedNftId])).to.be.revertedWithCustomError(
+          firstStrategy,
+          'NotAllowedActionWithManagedTokenId',
+        );
+      });
+
+      it('provide empty tokens array', async () => {
+        await expect(firstStrategy.connect(signers.deployer).compoundVeNFTs([])).to.be.revertedWithCustomError(
+          firstStrategy,
+          'ZeroCompoundVeNFTsReward',
+        );
+      });
+
+      it('try compound not own strategy veNFTs', async () => {
+        await expect(firstStrategy.connect(signers.deployer).compoundVeNFTs([userNftId])).to.be.revertedWithCustomError(
+          firstStrategy,
+          'InvalidVeNFTTokenIds',
+        );
+      });
+
+      it('try compound, but any of token not attached to nest lock', async () => {
+        await deployed.fenix.approve(deployed.votingEscrow.target, ethers.parseEther('100'));
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('1'), 0, firstStrategy, false, true, 0);
+
+        await expect(firstStrategy.connect(signers.deployer).compoundVeNFTs([userNftId + 1n])).to.be.revertedWithCustomError(
+          deployed.votingEscrow,
+          'TokenNotExist',
+        );
+      });
+    });
+    describe('success compound part of avialbale veNFT to managed nft id', async () => {
+      let tx: ContractTransactionResponse;
+
+      beforeEach(async () => {
+        // user1 attach to nest
+        await deployed.voter.connect(signers.otherUser1).attachToManagedNFT(userNftId, managedNftId);
+
+        await time.increase(86400 * 7);
+        expect((await deployed.votingEscrow.getNftState(managedNftId)).locked.amount).to.be.eq(ethers.parseEther('1'));
+
+        await deployed.fenix.approve(deployed.votingEscrow.target, ethers.parseEther('100'));
+
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('1'), 0, firstStrategy, false, true, 0);
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('2'), 0, firstStrategy, false, true, 0);
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('3'), 0, firstStrategy, false, true, 0);
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('4'), 0, signers.deployer, false, true, 0);
+
+        await deployed.votingEscrow['safeTransferFrom(address,address,uint256)'](signers.deployer, firstStrategy, 6);
+
+        expect(await deployed.votingEscrow.balanceOf(firstStrategy)).to.be.eq(5);
+        expect(await deployed.votingEscrow.balanceOf(signers.otherUser2)).to.be.eq(0);
+        expect(await deployed.votingEscrow.balanceOf(signers.fenixTeam)).to.be.eq(0);
+        expect(await deployed.votingEscrow.ownerOf(1)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(2)).to.be.eq(signers.otherUser1);
+        expect(await deployed.votingEscrow.ownerOf(3)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(4)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(5)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(6)).to.be.eq(firstStrategy);
+
+        tx = await firstStrategy.compoundVeNFTs([3, 4, 5]);
+      });
+
+      it('emit events', async () => {
+        let block = await tx.getBlock();
+        let currentEpoch = Math.floor(block!.timestamp / (86400 * 7)) * (86400 * 7);
+
+        await expect(tx).to.be.emit(firstStrategy, 'Compound').withArgs(signers.deployer, ethers.parseEther('6'));
+        await expect(tx).to.be.emit(virtualRewarder, 'NotifyReward').withArgs(ethers.parseEther('6'), currentEpoch);
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Merge').withArgs(firstStrategy, 3, 1);
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Merge').withArgs(firstStrategy, 4, 1);
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Merge').withArgs(firstStrategy, 5, 1);
+      });
+
+      it('success merge all tokens to managedNfToken', async () => {
+        await expect(deployed.votingEscrow.ownerOf(3)).to.be.revertedWith('ERC721: invalid token ID');
+        await expect(deployed.votingEscrow.ownerOf(4)).to.be.revertedWith('ERC721: invalid token ID');
+        await expect(deployed.votingEscrow.ownerOf(5)).to.be.revertedWith('ERC721: invalid token ID');
+
+        expect(await deployed.votingEscrow.balanceOf(firstStrategy)).to.be.eq(2);
+        expect(await deployed.votingEscrow.balanceOf(signers.otherUser2)).to.be.eq(0);
+        expect(await deployed.votingEscrow.balanceOf(signers.fenixTeam)).to.be.eq(0);
+        expect(await deployed.votingEscrow.ownerOf(1)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(2)).to.be.eq(signers.otherUser1);
+        expect(await deployed.votingEscrow.ownerOf(6)).to.be.eq(firstStrategy);
+
+        expect((await deployed.votingEscrow.getNftState(managedNftId)).locked.amount).to.be.eq(ethers.parseEther('7'));
+      });
+
+      it('check another states', async () => {
+        expect(await firstStrategy.balanceOf(userNftId)).to.be.eq(ethers.parseEther('1'));
+        expect(await firstStrategy.totalSupply()).to.be.eq(ethers.parseEther('1'));
+      });
+
+      it('success add rewards to epoch', async () => {
+        let block = await tx.getBlock();
+        let currentEpoch = Math.floor(block!.timestamp / (86400 * 7)) * (86400 * 7);
+        expect(await virtualRewarder.rewardsPerEpoch(currentEpoch)).to.be.eq(ethers.parseEther('6'));
+      });
+
+      describe('success compound rest part of veNFts', async () => {
+        beforeEach(async () => {
+          tx = await firstStrategy.compoundVeNFTs([6]);
+        });
+
+        it('emit events', async () => {
+          let block = await tx.getBlock();
+          let currentEpoch = Math.floor(block!.timestamp / (86400 * 7)) * (86400 * 7);
+
+          await expect(tx).to.be.emit(firstStrategy, 'Compound').withArgs(signers.deployer, ethers.parseEther('4'));
+          await expect(tx).to.be.emit(virtualRewarder, 'NotifyReward').withArgs(ethers.parseEther('4'), currentEpoch);
+          await expect(tx).to.be.emit(deployed.votingEscrow, 'Merge').withArgs(firstStrategy, 6, 1);
+        });
+
+        it('success merge all tokens to managedNfToken', async () => {
+          await expect(deployed.votingEscrow.ownerOf(3)).to.be.revertedWith('ERC721: invalid token ID');
+          await expect(deployed.votingEscrow.ownerOf(4)).to.be.revertedWith('ERC721: invalid token ID');
+          await expect(deployed.votingEscrow.ownerOf(5)).to.be.revertedWith('ERC721: invalid token ID');
+          await expect(deployed.votingEscrow.ownerOf(6)).to.be.revertedWith('ERC721: invalid token ID');
+
+          expect(await deployed.votingEscrow.balanceOf(firstStrategy)).to.be.eq(1);
+          expect(await deployed.votingEscrow.balanceOf(signers.otherUser2)).to.be.eq(0);
+          expect(await deployed.votingEscrow.balanceOf(signers.fenixTeam)).to.be.eq(0);
+          expect(await deployed.votingEscrow.ownerOf(1)).to.be.eq(firstStrategy);
+          expect(await deployed.votingEscrow.ownerOf(2)).to.be.eq(signers.otherUser1);
+
+          expect((await deployed.votingEscrow.getNftState(managedNftId)).locked.amount).to.be.eq(ethers.parseEther('11'));
+        });
+
+        it('check another states', async () => {
+          expect(await firstStrategy.balanceOf(userNftId)).to.be.eq(ethers.parseEther('1'));
+          expect(await firstStrategy.totalSupply()).to.be.eq(ethers.parseEther('1'));
+        });
+
+        it('success add rewards to epoch', async () => {
+          let block = await tx.getBlock();
+          let currentEpoch = Math.floor(block!.timestamp / (86400 * 7)) * (86400 * 7);
+          expect(await virtualRewarder.rewardsPerEpoch(currentEpoch)).to.be.eq(ethers.parseEther('10'));
+        });
+
+        it('user success withdraw with rewards after one epoch', async () => {
+          await time.increase(86400 * 7);
+
+          let tx = await deployed.voter.connect(signers.otherUser1).dettachFromManagedNFT(userNftId);
+
+          await expect(tx).to.be.emit(firstStrategy, 'OnDettach').withArgs(userNftId, ethers.parseEther('1'), ethers.parseEther('10'));
+
+          await expect(tx)
+            .to.be.emit(virtualRewarder, 'Harvest')
+            .withArgs(userNftId, ethers.parseEther('10'), () => true);
+
+          expect(await firstStrategy.balanceOf(userNftId)).to.be.eq(0);
+          expect(await firstStrategy.totalSupply()).to.be.eq(0);
+
+          expect((await deployed.votingEscrow.getNftState(managedNftId)).locked.amount).to.be.eq(0);
+
+          expect((await deployed.votingEscrow.getNftState(userNftId)).locked.amount).to.be.eq(ethers.parseEther('11'));
+        });
+      });
+    });
+  });
+  describe('#compoundVeNFTsAll', async () => {
+    describe('Should fail if', async () => {
+      it('user try call compound buy flag for public compound not setup', async () => {
+        await expect(firstStrategy.connect(signers.otherUser1).compoundVeNFTsAll()).to.be.revertedWithCustomError(
+          firstStrategy,
+          'AccessDenied',
+        );
+      });
+      it('cal with only managed nft id on balance', async () => {
+        await expect(firstStrategy.connect(signers.deployer).compoundVeNFTsAll()).to.be.revertedWithCustomError(
+          firstStrategy,
+          'NotOtherVeNFTsAvailable',
+        );
+      });
+    });
+
+    describe('success compound all of avialbale veNFT to managed nft id', async () => {
+      let tx: ContractTransactionResponse;
+
+      beforeEach(async () => {
+        // user1 attach to nest
+        await deployed.voter.connect(signers.otherUser1).attachToManagedNFT(userNftId, managedNftId);
+
+        await time.increase(86400 * 7);
+        expect((await deployed.votingEscrow.getNftState(managedNftId)).locked.amount).to.be.eq(ethers.parseEther('1'));
+
+        await deployed.fenix.approve(deployed.votingEscrow.target, ethers.parseEther('100'));
+
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('1'), 0, firstStrategy, false, true, 0);
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('2'), 0, firstStrategy, false, true, 0);
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('3'), 0, firstStrategy, false, true, 0);
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('4'), 0, signers.deployer, false, true, 0);
+
+        await deployed.votingEscrow['safeTransferFrom(address,address,uint256)'](signers.deployer, firstStrategy, 6);
+
+        expect(await deployed.votingEscrow.balanceOf(firstStrategy)).to.be.eq(5);
+        expect(await deployed.votingEscrow.balanceOf(signers.otherUser2)).to.be.eq(0);
+        expect(await deployed.votingEscrow.balanceOf(signers.fenixTeam)).to.be.eq(0);
+        expect(await deployed.votingEscrow.ownerOf(1)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(2)).to.be.eq(signers.otherUser1);
+        expect(await deployed.votingEscrow.ownerOf(3)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(4)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(5)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(6)).to.be.eq(firstStrategy);
+
+        tx = await firstStrategy.compoundVeNFTsAll();
+      });
+
+      it('emit events', async () => {
+        let block = await tx.getBlock();
+        let currentEpoch = Math.floor(block!.timestamp / (86400 * 7)) * (86400 * 7);
+
+        await expect(tx).to.be.emit(firstStrategy, 'Compound').withArgs(signers.deployer, ethers.parseEther('10'));
+        await expect(tx).to.be.emit(virtualRewarder, 'NotifyReward').withArgs(ethers.parseEther('10'), currentEpoch);
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Merge').withArgs(firstStrategy, 3, 1);
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Merge').withArgs(firstStrategy, 4, 1);
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Merge').withArgs(firstStrategy, 5, 1);
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Merge').withArgs(firstStrategy, 6, 1);
+      });
+
+      it('success merge all tokens to managedNfToken', async () => {
+        await expect(deployed.votingEscrow.ownerOf(3)).to.be.revertedWith('ERC721: invalid token ID');
+        await expect(deployed.votingEscrow.ownerOf(4)).to.be.revertedWith('ERC721: invalid token ID');
+        await expect(deployed.votingEscrow.ownerOf(5)).to.be.revertedWith('ERC721: invalid token ID');
+        await expect(deployed.votingEscrow.ownerOf(6)).to.be.revertedWith('ERC721: invalid token ID');
+
+        expect(await deployed.votingEscrow.balanceOf(firstStrategy)).to.be.eq(1);
+        expect(await deployed.votingEscrow.balanceOf(signers.otherUser2)).to.be.eq(0);
+        expect(await deployed.votingEscrow.balanceOf(signers.fenixTeam)).to.be.eq(0);
+        expect(await deployed.votingEscrow.ownerOf(1)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(2)).to.be.eq(signers.otherUser1);
+
+        expect((await deployed.votingEscrow.getNftState(managedNftId)).locked.amount).to.be.eq(ethers.parseEther('11'));
+      });
+
+      it('check another states', async () => {
+        expect(await firstStrategy.balanceOf(userNftId)).to.be.eq(ethers.parseEther('1'));
+        expect(await firstStrategy.totalSupply()).to.be.eq(ethers.parseEther('1'));
+      });
+
+      it('success add rewards to epoch', async () => {
+        let block = await tx.getBlock();
+        let currentEpoch = Math.floor(block!.timestamp / (86400 * 7)) * (86400 * 7);
+        expect(await virtualRewarder.rewardsPerEpoch(currentEpoch)).to.be.eq(ethers.parseEther('10'));
+      });
+
+      it('user success withdraw with rewards after one epoch', async () => {
+        await time.increase(86400 * 7);
+
+        let tx = await deployed.voter.connect(signers.otherUser1).dettachFromManagedNFT(userNftId);
+
+        await expect(tx).to.be.emit(firstStrategy, 'OnDettach').withArgs(userNftId, ethers.parseEther('1'), ethers.parseEther('10'));
+
+        await expect(tx)
+          .to.be.emit(virtualRewarder, 'Harvest')
+          .withArgs(userNftId, ethers.parseEther('10'), () => true);
+
+        expect(await firstStrategy.balanceOf(userNftId)).to.be.eq(0);
+        expect(await firstStrategy.totalSupply()).to.be.eq(0);
+
+        expect((await deployed.votingEscrow.getNftState(managedNftId)).locked.amount).to.be.eq(0);
+
+        expect((await deployed.votingEscrow.getNftState(userNftId)).locked.amount).to.be.eq(ethers.parseEther('11'));
+      });
+    });
+  });
+
   describe('#claimBribesWithERC20Recover', async () => {
     it('fails if caller not admin', async () => {
       await expect(
@@ -280,6 +564,7 @@ describe('CompoundVeFNXManagedStrategy Contract', function () {
         firstStrategy.claimBribesWithERC20Recover([], [], signers.otherUser1.address, [deployed.fenix.target]),
       ).to.be.revertedWithCustomError(firstStrategy, 'IncorrectRecoverToken');
     });
+
     it('fails if try recover router allowed tokens (strategy without flag for ignor this requirement)', async () => {
       let token = await deployERC20MockToken(signers.deployer, 't', 't', 6);
       await routerV2PathProvider.setAllowedTokenInInputRouters(token.target, true);
@@ -287,6 +572,7 @@ describe('CompoundVeFNXManagedStrategy Contract', function () {
         firstStrategy.claimBribesWithERC20Recover([], [], signers.otherUser1.address, [token.target]),
       ).to.be.revertedWithCustomError(firstStrategy, 'IncorrectRecoverToken');
     });
+
     it('success recover erc20 token', async () => {
       let token = await deployERC20MockToken(signers.deployer, 't', 't', 6);
       await token.mint(firstStrategy.target, 1e6);
@@ -301,6 +587,7 @@ describe('CompoundVeFNXManagedStrategy Contract', function () {
       expect(await token.balanceOf(signers.otherUser2.address)).to.be.eq(1e6);
       expect(await token.balanceOf(firstStrategy)).to.be.eq(ZERO);
     });
+
     describe('Strategy has IGNORE_RESTRICTIONS_ON_RECOVER_TOKENS flag, success recover', async () => {
       it('FNX  token', async () => {
         await managedNFTManager.setStrategyFlags(firstStrategy, 1);
@@ -336,6 +623,147 @@ describe('CompoundVeFNXManagedStrategy Contract', function () {
       });
     });
   });
+
+  describe('#claimBribesWithTokensRecover', async () => {
+    it('fails if caller not admin', async () => {
+      await expect(
+        firstStrategy.connect(signers.otherUser1).claimBribesWithTokensRecover([], [], signers.otherUser1.address, [], []),
+      ).to.be.revertedWithCustomError(firstStrategy, 'AccessDenied');
+    });
+
+    it('fails if try recover fenix (strategy without flag for ignor this requirement)', async () => {
+      await expect(
+        firstStrategy.claimBribesWithTokensRecover([], [], signers.otherUser1.address, [deployed.fenix.target], []),
+      ).to.be.revertedWithCustomError(firstStrategy, 'IncorrectRecoverToken');
+    });
+
+    it('fails if try recover veNFTS (strategy without flag for ignor this requirement)', async () => {
+      await expect(firstStrategy.claimBribesWithTokensRecover([], [], signers.otherUser1.address, [], [2])).to.be.revertedWithCustomError(
+        firstStrategy,
+        'IncorrectRecoverToken',
+      );
+    });
+
+    it('fails if try recover router allowed tokens (strategy without flag for ignor this requirement)', async () => {
+      let token = await deployERC20MockToken(signers.deployer, 't', 't', 6);
+      await routerV2PathProvider.setAllowedTokenInInputRouters(token.target, true);
+      await expect(
+        firstStrategy.claimBribesWithTokensRecover([], [], signers.otherUser1.address, [token.target], []),
+      ).to.be.revertedWithCustomError(firstStrategy, 'IncorrectRecoverToken');
+    });
+
+    it('success recover erc20 token', async () => {
+      let token = await deployERC20MockToken(signers.deployer, 't', 't', 6);
+      await token.mint(firstStrategy.target, 1e6);
+
+      expect(await token.balanceOf(signers.otherUser2.address)).to.be.eq(ZERO);
+      expect(await token.balanceOf(firstStrategy.target)).to.be.eq(1e6);
+
+      await expect(firstStrategy.claimBribesWithTokensRecover([], [], signers.otherUser2.address, [token.target], []))
+        .to.be.emit(firstStrategy, 'Erc20Recover')
+        .withArgs(signers.deployer.address, signers.otherUser2.address, token.target, 1e6);
+
+      expect(await token.balanceOf(signers.otherUser2.address)).to.be.eq(1e6);
+      expect(await token.balanceOf(firstStrategy)).to.be.eq(ZERO);
+    });
+
+    describe('Strategy has IGNORE_RESTRICTIONS_ON_RECOVER_NFT_TOKENS flag', async () => {
+      beforeEach(async () => {
+        await managedNFTManager.setStrategyFlags(firstStrategy, 2);
+        expect(await managedNFTManager.getStrategyFlags(firstStrategy)).to.be.eq(2);
+
+        await deployed.fenix.approve(deployed.votingEscrow.target, ethers.parseEther('3'));
+
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('1'), 0, firstStrategy, false, true, 0);
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('1'), 0, firstStrategy, false, true, 0);
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('1'), 0, firstStrategy, false, true, 0);
+
+        expect(await deployed.votingEscrow.balanceOf(firstStrategy)).to.be.eq(4);
+        expect(await deployed.votingEscrow.balanceOf(signers.otherUser2)).to.be.eq(0);
+        expect(await deployed.votingEscrow.balanceOf(signers.fenixTeam)).to.be.eq(0);
+
+        expect(await deployed.votingEscrow.ownerOf(1)).to.be.eq(firstStrategy);
+        expect(managedNftId).to.be.eq(1);
+
+        expect(await deployed.votingEscrow.ownerOf(2)).to.be.eq(signers.otherUser1);
+        expect(userNftId).to.be.eq(2);
+
+        expect(await deployed.votingEscrow.ownerOf(3)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(4)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(5)).to.be.eq(firstStrategy);
+      });
+
+      it('fail if try recover not own tokens', async () => {
+        await expect(firstStrategy.claimBribesWithTokensRecover([], [], signers.otherUser2.address, [], [2])).to.be.revertedWith(
+          'ERC721: caller is not token owner or approved',
+        );
+      });
+
+      it('fail if try recover managed token id', async () => {
+        await expect(
+          firstStrategy.claimBribesWithTokensRecover([], [], signers.otherUser2.address, [], [managedNftId]),
+        ).to.be.revertedWithCustomError(firstStrategy, 'NotAllowedActionWithManagedTokenId');
+      });
+
+      it('success recover veFNX  token', async () => {
+        let tx = await firstStrategy.claimBribesWithTokensRecover([], [], signers.otherUser2.address, [], [3, 4]);
+        await expect(tx)
+          .to.be.emit(firstStrategy, 'Erc721Recover')
+          .withArgs(signers.deployer.address, signers.otherUser2, deployed.votingEscrow.target, [3, 4]);
+
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Transfer').withArgs(firstStrategy, signers.otherUser2, 3);
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Transfer').withArgs(firstStrategy, signers.otherUser2, 4);
+
+        expect(await deployed.votingEscrow.balanceOf(firstStrategy)).to.be.eq(2);
+        expect(await deployed.votingEscrow.balanceOf(signers.otherUser2)).to.be.eq(2);
+        expect(await deployed.votingEscrow.balanceOf(signers.fenixTeam)).to.be.eq(0);
+
+        expect(await deployed.votingEscrow.ownerOf(1)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(2)).to.be.eq(signers.otherUser1);
+
+        expect(await deployed.votingEscrow.ownerOf(3)).to.be.eq(signers.otherUser2);
+        expect(await deployed.votingEscrow.ownerOf(4)).to.be.eq(signers.otherUser2);
+        expect(await deployed.votingEscrow.ownerOf(5)).to.be.eq(firstStrategy);
+      });
+    });
+
+    describe('Strategy has IGNORE_RESTRICTIONS_ON_RECOVER_TOKENS flag, success recover', async () => {
+      it('FNX  token', async () => {
+        await managedNFTManager.setStrategyFlags(firstStrategy, 1);
+        expect(await managedNFTManager.getStrategyFlags(firstStrategy)).to.be.eq(1);
+        await deployed.fenix.transfer(firstStrategy.target, ethers.parseEther('1'));
+        expect(await deployed.fenix.balanceOf(signers.otherUser2.address)).to.be.eq(ZERO);
+        expect(await deployed.fenix.balanceOf(firstStrategy.target)).to.be.eq(ethers.parseEther('1'));
+
+        await expect(firstStrategy.claimBribesWithTokensRecover([], [], signers.otherUser2.address, [deployed.fenix.target], []))
+          .to.be.emit(firstStrategy, 'Erc20Recover')
+          .withArgs(signers.deployer.address, signers.otherUser2.address, deployed.fenix.target, ethers.parseEther('1'));
+
+        expect(await deployed.fenix.balanceOf(signers.otherUser2.address)).to.be.eq(ethers.parseEther('1'));
+        expect(await deployed.fenix.balanceOf(firstStrategy)).to.be.eq(0);
+      });
+
+      it('router allowed tokens', async () => {
+        await managedNFTManager.setStrategyFlags(firstStrategy, 1);
+        expect(await managedNFTManager.getStrategyFlags(firstStrategy)).to.be.eq(1);
+
+        let token = await deployERC20MockToken(signers.deployer, 't', 't', 6);
+        await routerV2PathProvider.setAllowedTokenInInputRouters(token.target, true);
+
+        await token.mint(firstStrategy.target, ethers.parseEther('1'));
+        expect(await token.balanceOf(signers.otherUser2.address)).to.be.eq(ZERO);
+        expect(await token.balanceOf(firstStrategy.target)).to.be.eq(ethers.parseEther('1'));
+
+        await expect(firstStrategy.claimBribesWithTokensRecover([], [], signers.otherUser2.address, [token.target], []))
+          .to.be.emit(firstStrategy, 'Erc20Recover')
+          .withArgs(signers.deployer.address, signers.otherUser2.address, token.target, ethers.parseEther('1'));
+
+        expect(await token.balanceOf(signers.otherUser2.address)).to.be.eq(ethers.parseEther('1'));
+        expect(await token.balanceOf(firstStrategy)).to.be.eq(0);
+      });
+    });
+  });
+
   describe('#erc20Recover', async () => {
     it('fails if caller not admin', async () => {
       await expect(
@@ -416,6 +844,142 @@ describe('CompoundVeFNXManagedStrategy Contract', function () {
     });
   });
 
+  describe('#erc721Recover', async () => {
+    it('fails if caller not admin', async () => {
+      await expect(
+        firstStrategy.connect(signers.otherUser1).erc721Recover(deployed.votingEscrow, signers.fenixTeam, []),
+      ).to.be.revertedWithCustomError(firstStrategy, 'AccessDenied');
+    });
+
+    it('fails if try recover votingEscrow nfts', async () => {
+      await expect(firstStrategy.erc721Recover(deployed.votingEscrow, signers.fenixTeam, [])).to.be.revertedWithCustomError(
+        firstStrategy,
+        'IncorrectRecoverToken',
+      );
+    });
+
+    it('fails if try recover managed nft token (allowed recover veNFTS by flags', async () => {
+      await managedNFTManager.setStrategyFlags(firstStrategy, 2);
+      await expect(firstStrategy.erc721Recover(deployed.votingEscrow, signers.fenixTeam, [managedNftId])).to.be.revertedWithCustomError(
+        firstStrategy,
+        'NotAllowedActionWithManagedTokenId',
+      );
+    });
+
+    it('success recover singel erc721 token', async () => {
+      let token = await deployERC721MockToken(signers.deployer, 't', 't');
+      await token.mint(firstStrategy.target);
+
+      expect(await token.balanceOf(firstStrategy)).to.be.eq(1);
+      expect(await token.balanceOf(signers.fenixTeam)).to.be.eq(0);
+      expect(await token.ownerOf(0)).to.be.eq(firstStrategy);
+      let tx = await firstStrategy.erc721Recover(token.target, signers.fenixTeam.address, [0]);
+      await expect(tx)
+        .to.be.emit(firstStrategy, 'Erc721Recover')
+        .withArgs(signers.deployer.address, signers.fenixTeam.address, token.target, [0]);
+
+      await expect(tx).to.be.emit(token, 'Transfer').withArgs(firstStrategy, signers.fenixTeam.address, 0);
+
+      expect(await token.balanceOf(firstStrategy)).to.be.eq(0);
+      expect(await token.balanceOf(signers.fenixTeam)).to.be.eq(1);
+      expect(await token.ownerOf(0)).to.be.eq(signers.fenixTeam);
+    });
+
+    it('success recover multi erc721 tokens', async () => {
+      let token = await deployERC721MockToken(signers.deployer, 't', 't');
+      await token.mint(firstStrategy.target);
+      await token.mint(firstStrategy.target);
+      await token.mint(firstStrategy.target);
+      await token.mint(firstStrategy.target);
+      await token.mint(firstStrategy.target);
+
+      expect(await token.balanceOf(firstStrategy)).to.be.eq(5);
+      expect(await token.balanceOf(signers.fenixTeam)).to.be.eq(0);
+      expect(await token.ownerOf(0)).to.be.eq(firstStrategy);
+      expect(await token.ownerOf(1)).to.be.eq(firstStrategy);
+      expect(await token.ownerOf(2)).to.be.eq(firstStrategy);
+      expect(await token.ownerOf(3)).to.be.eq(firstStrategy);
+      expect(await token.ownerOf(4)).to.be.eq(firstStrategy);
+
+      let tx = await firstStrategy.erc721Recover(token.target, signers.fenixTeam.address, [1, 2, 3]);
+      await expect(tx)
+        .to.be.emit(firstStrategy, 'Erc721Recover')
+        .withArgs(signers.deployer.address, signers.fenixTeam.address, token.target, [1, 2, 3]);
+
+      await expect(tx).to.be.emit(token, 'Transfer').withArgs(firstStrategy, signers.fenixTeam.address, 1);
+      await expect(tx).to.be.emit(token, 'Transfer').withArgs(firstStrategy, signers.fenixTeam.address, 2);
+      await expect(tx).to.be.emit(token, 'Transfer').withArgs(firstStrategy, signers.fenixTeam.address, 3);
+
+      expect(await token.balanceOf(firstStrategy)).to.be.eq(2);
+      expect(await token.balanceOf(signers.fenixTeam)).to.be.eq(3);
+      expect(await token.ownerOf(0)).to.be.eq(firstStrategy);
+      expect(await token.ownerOf(1)).to.be.eq(signers.fenixTeam);
+      expect(await token.ownerOf(2)).to.be.eq(signers.fenixTeam);
+      expect(await token.ownerOf(3)).to.be.eq(signers.fenixTeam);
+      expect(await token.ownerOf(4)).to.be.eq(firstStrategy);
+    });
+
+    describe('Strategy has IGNORE_RESTRICTIONS_ON_RECOVER_VE_NFT_TOKENS flag, success recover veNFT', async () => {
+      beforeEach(async () => {
+        await managedNFTManager.setStrategyFlags(firstStrategy, 2);
+        expect(await managedNFTManager.getStrategyFlags(firstStrategy)).to.be.eq(2);
+
+        await deployed.fenix.approve(deployed.votingEscrow.target, ethers.parseEther('3'));
+
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('1'), 0, firstStrategy, false, true, 0);
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('1'), 0, firstStrategy, false, true, 0);
+        await deployed.votingEscrow.createLockFor(ethers.parseEther('1'), 0, firstStrategy, false, true, 0);
+
+        expect(await deployed.votingEscrow.balanceOf(firstStrategy)).to.be.eq(4);
+        expect(await deployed.votingEscrow.balanceOf(signers.otherUser2)).to.be.eq(0);
+        expect(await deployed.votingEscrow.balanceOf(signers.fenixTeam)).to.be.eq(0);
+
+        expect(await deployed.votingEscrow.ownerOf(1)).to.be.eq(firstStrategy);
+        expect(managedNftId).to.be.eq(1);
+
+        expect(await deployed.votingEscrow.ownerOf(2)).to.be.eq(signers.otherUser1);
+        expect(userNftId).to.be.eq(2);
+
+        expect(await deployed.votingEscrow.ownerOf(3)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(4)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(5)).to.be.eq(firstStrategy);
+      });
+
+      it('fail if try recover not own tokens', async () => {
+        await expect(firstStrategy.erc721Recover(deployed.votingEscrow, signers.otherUser2, [2])).to.be.revertedWith(
+          'ERC721: caller is not token owner or approved',
+        );
+      });
+
+      it('fail if try recover managed token id', async () => {
+        await expect(firstStrategy.erc721Recover(deployed.votingEscrow, signers.otherUser2, [managedNftId])).to.be.revertedWithCustomError(
+          firstStrategy,
+          'NotAllowedActionWithManagedTokenId',
+        );
+      });
+
+      it('success recover veFNX  token', async () => {
+        let tx = await firstStrategy.erc721Recover(deployed.votingEscrow, signers.otherUser2, [3, 4]);
+        await expect(tx)
+          .to.be.emit(firstStrategy, 'Erc721Recover')
+          .withArgs(signers.deployer.address, signers.otherUser2, deployed.votingEscrow.target, [3, 4]);
+
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Transfer').withArgs(firstStrategy, signers.otherUser2, 3);
+        await expect(tx).to.be.emit(deployed.votingEscrow, 'Transfer').withArgs(firstStrategy, signers.otherUser2, 4);
+
+        expect(await deployed.votingEscrow.balanceOf(firstStrategy)).to.be.eq(2);
+        expect(await deployed.votingEscrow.balanceOf(signers.otherUser2)).to.be.eq(2);
+        expect(await deployed.votingEscrow.balanceOf(signers.fenixTeam)).to.be.eq(0);
+
+        expect(await deployed.votingEscrow.ownerOf(1)).to.be.eq(firstStrategy);
+        expect(await deployed.votingEscrow.ownerOf(2)).to.be.eq(signers.otherUser1);
+
+        expect(await deployed.votingEscrow.ownerOf(3)).to.be.eq(signers.otherUser2);
+        expect(await deployed.votingEscrow.ownerOf(4)).to.be.eq(signers.otherUser2);
+        expect(await deployed.votingEscrow.ownerOf(5)).to.be.eq(firstStrategy);
+      });
+    });
+  });
   describe('Buyback functionality', async () => {
     it('buyback target token should return fenix ', async () => {
       expect(await firstStrategy.getBuybackTargetToken()).to.be.eq(deployed.fenix.target);

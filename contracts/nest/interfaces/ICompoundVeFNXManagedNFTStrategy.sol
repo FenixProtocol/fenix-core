@@ -46,6 +46,16 @@ interface ICompoundVeFNXManagedNFTStrategy is IManagedNFTStrategy, ISingelTokenB
     event Erc20Recover(address indexed caller, address indexed recipient, address indexed token, uint256 amount);
 
     /**
+     * @dev Emitted when ERC721 tokens are recovered from the contract by an admin.
+     *
+     * @param caller The address of the caller who initiated the recovery.
+     * @param recipient The recipient address where the recovered tokens were sent.
+     * @param token The address of the token that was recovered.
+     * @param tokenIds The array of token identifiers that are wtihdrawed
+     */
+    event Erc721Recover(address indexed caller, address indexed recipient, address indexed token, uint256[] tokenIds);
+
+    /**
      * @dev Emitted when the address of the Router V2 Path Provider is updated.
      *
      * @param oldRouterV2PathProvider The address of the previous Router V2 Path Provider.
@@ -59,6 +69,20 @@ interface ICompoundVeFNXManagedNFTStrategy is IManagedNFTStrategy, ISingelTokenB
      * This is specific to strategies dealing with compounding mechanisms in DeFi protocols.
      */
     function compound() external;
+
+    /**
+     * @notice Merges (compounds) all veNFTs owned by this strategy except the managed one (`managedTokenId`).
+     * @dev Checks if there is more than one veNFT owned. If only the managed one is present,
+     *      it reverts with `NotOtherVeNFTsAvailable()`.
+     */
+    function compoundVeNFTsAll() external;
+
+    /**
+     * @notice Merges (compounds) the specified list of veNFT IDs into the managed veNFT.
+     * @dev Ensures that each veNFT ID is actually owned by this contract
+     * @param tokenIds_ The list of veNFT IDs to be merged.
+     */
+    function compoundVeNFTs(uint256[] calldata tokenIds_) external;
 
     /**
      * @notice Returns the address of the virtual rewarder associated with this strategy.
@@ -110,6 +134,32 @@ interface ICompoundVeFNXManagedNFTStrategy is IManagedNFTStrategy, ISingelTokenB
         address recipient_,
         address[] calldata tokensToRecover_
     ) external;
+
+    /**
+     * @notice Claims bribes from multiple addresses and recovers both specified ERC20 tokens and specified veNFTs to the given recipient.
+     * @dev Extends `claimBribesWithERC20Recover` by also recovering veNFTs if `veNftTokenIdsToRecover_` is non-empty.
+     *      Protected by `_checkBuybackSwapPermissions()`.
+     * @param bribes_                Array of addresses from which to claim bribes.
+     * @param tokens_                Nested array of token addresses corresponding to each bribe address.
+     * @param recipient_             The address to which recovered tokens/NFTs are sent.
+     * @param tokensToRecover_       The list of ERC20 tokens to be recovered and transferred to `recipient_`.
+     * @param veNftTokenIdsToRecover_ The list of veNFT IDs to be recovered and transferred to `recipient_`.
+     */
+    function claimBribesWithTokensRecover(
+        address[] calldata bribes_,
+        address[][] calldata tokens_,
+        address recipient_,
+        address[] calldata tokensToRecover_,
+        uint256[] calldata veNftTokenIdsToRecover_
+    ) external;
+
+    /**
+     * @notice Recovers specified NFT tokens from this contract to a given recipient.
+     * @param recipient_ The address receiving the recovered NFTs.
+     * @param token_     The NFT contract address (e.g. `votingEscrow` or other ERC721).
+     * @param tokenIds_  The list of NFT IDs to transfer.
+     */
+    function erc721Recover(address recipient_, address token_, uint256[] calldata tokenIds_) external;
 
     /**
      * @notice Initializes the contract with necessary blast governance and operational addresses, and sets specific strategy parameters.

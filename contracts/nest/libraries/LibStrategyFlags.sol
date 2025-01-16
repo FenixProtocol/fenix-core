@@ -22,5 +22,20 @@ library LibStrategyFlags {
     /**
      * @dev Flag constant used to indicate that restrictions on recovering tokens should be ignored.
      */
-    uint256 internal constant IGNORE_RESTRICTIONS_ON_RECOVER_TOKENS = 1;
+    uint256 internal constant IGNORE_RESTRICTIONS_ON_RECOVER_TOKENS = 1 << 0;
+
+    /**
+     * @dev Flag constant used to indicate that restrictions on recovering ve nft tokens should be ignored.
+     */
+    uint256 internal constant IGNORE_RESTRICTIONS_ON_RECOVER_VE_NFT_TOKENS = 1 << 1;
+
+    /**
+     * @dev Flag constant used to indicate that restrictions public erc20 compound calls.
+     */
+    uint256 internal constant IGNORE_RESTRICTIONS_ON_PUBLIC_ERC20_COMPOUND = 1 << 2;
+
+    /**
+     * @dev Flag constant used to indicate that restrictions public ve nft compound calls.
+     */
+    uint256 internal constant IGNORE_RESTRICTIONS_ON_PUBLIC_VE_NFT_COMPOUND = 1 << 3;
 }

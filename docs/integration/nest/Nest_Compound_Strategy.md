@@ -1,14 +1,15 @@
 # Compound VeFNX Managed NFT Strategy Upgradeable
 
 ## Overview
-The `Compound VeFNX Managed NFT Strategy Upgradeable` is a smart contract designed to enhance the management of FENIX tokens through compounding rewards and stake management within a decentralized finance (DeFi) environment. This contract is an integral part of a broader system that utilizes non-fungible tokens (NFTs) to represent  financial strategies. It automates the process of reinvesting harvested rewards back into VeFNX, aiming to maximize returns and increase the underlying voting power of the tokens.
-
+The `Compound VeFNX Managed NFT Strategy Upgradeable` is a smart contract designed to enhance the management of FENIX tokens through compounding rewards and stake management within a decentralized finance (DeFi) environment. This contract is an integral part of a broader system that utilizes non-fungible tokens (NFTs) to represent financial strategies. It automates the process of reinvesting harvested rewards back into VeFNX, aiming to maximize returns and increase the underlying voting power of the tokens.
 
 ## Reward Lifecycle
-Rewards are accumulated over time and become accessible when participants choose to detach from the strategy. The amount of reward a user receives is proportional to their share of the total amount staked in the strategy.
-The reward is given to the user in the new era, during the distribution in the distribution window. **But in any case, you should make sure that the reward has been given out before leaving the strategy**
+Rewards are accumulated over time and become accessible when participants choose to detach from the strategy. The amount of reward a user receives is proportional to their share of the total amount staked in the strategy. The reward is given to the user in the new era, during the distribution in the distribution window. **But in any case, you should make sure that the reward has been given out before leaving the strategy.**
+
+---
 
 ## Functions
+
 ### Reward and Stake Information
 #### The current value of the user's earned reward
 ```js
@@ -21,7 +22,6 @@ Retrieves the total amount of locked rewards for a specific NFT identified by `t
 function balanceOf(uint256 tokenId_) external view returns (uint256)
 ```
 Shows the current balance or stake of a specific NFT in the strategy.
-
 
 #### Get Total Supply of Locked FNX
 ```js
@@ -41,8 +41,17 @@ function managedTokenId() external view returns (uint256)
 ```
 Provides the ID of the veFNX managed under this strategy, linking specific actions and rewards to it.
 
-### Public functions
-#### Compound FNX in veFNX managed nft
+---
+
+### Public Functions
+#### Compound veFNX in veFNX Managed NFT
+
+```js
+    function compoundVeNFTsAll() external
+    function compoundVeNFTs(uint256[] calldata tokenIds_) external
+```
+
+#### Compound FNX in veFNX Managed NFT
 ```js
 function compound() external
 ```
@@ -52,45 +61,41 @@ Compounds all available FNX on the strategy's balance into the managed NFT’s V
 ```js
 function claimBribes(address[] calldata bribes_, address[][] calldata tokens_) external
 ```
-Allows anyone to claim the reward assigned to a given strategy for voting on it
+Allows anyone to claim the reward assigned to a given strategy for voting on it.
 
-
-#### Claim Rewards
+#### Claim Bribes with Tokens and veNFT Recovery
 ```js
-function claimRewards(address[] calldata bribes_, address[][] calldata tokens_) external
+function claimBribesWithTokensRecover(
+    address[] calldata bribes_,
+    address[][] calldata tokens_,
+    address recipient_,
+    address[] calldata tokensToRecover_,
+    uint256[] calldata veNftTokenIdsToRecover_
+) external
 ```
-No direct application and intended for specific cases
+Allows claiming bribes from multiple addresses and recovering both specified ERC20 tokens and veNFTs to a given recipient. This function is particularly useful for combining token and NFT recovery into a single transaction.
 
+---
 
-### Public functions
-#### Compound FNX in veFNX managed nft
-```js
-function compound() external
-```
-Compounds all available FNX on the strategy's balance into the managed NFT’s VeFNX stake, enhancing the voting power and potential future rewards.
+### Authorized Methods
 
-#### Claim Bribes
-```js
-function claimBribes(address[] calldata bribes_, address[][] calldata tokens_) external
-```
-Allows anyone to claim the reward assigned to a given strategy for voting on it
-
-
-### Authorized methods
-#### Distribute managed nft vote power
+#### Distribute Managed NFT Vote Power
 ```js
 function vote(address[] calldata poolVote_, uint256[] calldata weights_) external onlyAuthorized
 ```
-The authorized person has the right to distribute the voting power according to his/her own voting optimization algorithm
+The authorized person has the right to distribute the voting power according to his/her own voting optimization algorithm.
 
-
-#### Tokens recover
-
+#### ERC20 Token Recovery
 ```js
 function erc20Recover(address token_, address recipient_) external
 ```
-Allows an authorized person to withdraw reward tokens for the sale and redemption of Fenix with subsequent return to the strategy
+Allows an authorized person to withdraw reward tokens for the sale and redemption of FENIX with subsequent return to the strategy.
 
+#### veNFT Recovery
+```js
+function erc721Recover(address token_, address recipient_, uint256[] calldata tokenIds_) external
+```
+Enables recovery of specified veNFTs to a recipient. Managed veNFT (`managedTokenId`) cannot be recovered unless specific flags are set.
 
 #### Tokens Buyback by V2
 ```js
@@ -104,7 +109,10 @@ function buybackTokenByV2(
 **Description**: Facilitates the buyback of tokens by swapping a specified input token for a target token using a DEX V2 Router. The function ensures that the transaction adheres to specified slippage limits and is executed before a set deadline.
 
 **Parameters**:
-* `inputToken_`: The ERC20 token to be swapped.
-* `inputRouters_`: An array of route structures defining the swap path and intermediaries for the token conversion.
-* `slippage_`: The maximum allowed slippage for the swap, expressed in basis points.
-* `deadline_`: The Unix timestamp after which the swap transaction must revert if not executed.
+- `inputToken_`: The ERC20 token to be swapped.
+- `inputRouters_`: An array of route structures defining the swap path and intermediaries for the token conversion.
+- `slippage_`: The maximum allowed slippage for the swap, expressed in basis points.
+- `deadline_`: The Unix timestamp after which the swap transaction must revert if not executed.
+
+---
+
