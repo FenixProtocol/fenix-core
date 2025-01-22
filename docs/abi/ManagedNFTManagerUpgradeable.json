@@ -182,6 +182,25 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "strategy",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "flags",
+        "type": "uint8"
+      }
+    ],
+    "name": "SetStrategyFlags",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
@@ -299,6 +318,25 @@
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "getStrategyFlags",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
       }
     ],
     "stateMutability": "view",
@@ -616,6 +654,24 @@
       }
     ],
     "name": "setAuthorizedUser",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "strategy_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint8",
+        "name": "flags_",
+        "type": "uint8"
+      }
+    ],
+    "name": "setStrategyFlags",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

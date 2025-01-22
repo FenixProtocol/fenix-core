@@ -31,7 +31,7 @@ When a user specifies duplicate entries in the `TargetLock[]` array, all entries
 
 ### **Implementation**
 - Duplicate `tokenId` values in `TargetLock[]` are allowed, but each entry is processed separately.
-- The contract does not aggregate the `lockPercentage` of duplicates.
+- The contract does not aggregate the `percentage` of duplicates.
 
 ### **Result**
 Each duplicate entry will be processed independently, creating new locks or depositing into existing ones as specified.
@@ -101,4 +101,58 @@ When a user merges one veNFT lock with another, the `TargetLock` entries for the
 
 ### **Impact**
 - The merge operation ensures that compounding continues seamlessly without manual intervention.
+
+---
+
+## 6. Invalid Lock Configurations
+
+### **Scenario**
+A user attempts to set an invalid lock configuration for compounding emissions.
+
+### **Implementation**
+- The contract validates lock configurations:
+  - If `withPermanentLock` is `false`, `lockDuration` must be non-zero.
+  - If all configuration parameters are zero/false, the user's custom configuration is removed.
+- Invalid configurations revert with the `InvalidCreateLockConfig()` error.
+
+### **Impact**
+- Ensures only valid configurations are applied, preventing unintended behaviors.
+
+---
+
+## 7. Zero Allocation to Locks or Bribe Pools
+
+### **Scenario**
+A user sets their entire emission allocation to either locks or bribe pools, leaving the other at 0%.
+
+### **Implementation**
+- If `toLocksPercentage` is `0`, all associated `TargetLock[]` entries are cleared.
+- If `toBribePoolsPercentage` is `0`, all associated `TargetPool[]` entries are cleared.
+
+### **Impact**
+- Prevents unnecessary storage usage and ensures accurate allocation.
+
+---
+
+## 8. Dead Bribe Pool Handling
+
+### **Scenario**
+If a bribe pool associated with a `TargetPool` becomes inactive or is killed after being set, emissions allocated to that pool must be redirected to new veNFT locks.
+
+### **Implementation**
+- During compounding, the contract verifies the status of each bribe pool:
+  - If the bribe pool is killed, the allocated emissions are redirected to create a new veNFT lock for the user.
+  - A new veNFT lock is created using the user’s custom or default `CreateLockConfig`.
+
+### **Result**
+- Emissions allocated to dead bribe pools are repurposed to create new locks.
+- The `CreateLockConfig` is applied for the new lock, and the corresponding amount is locked.
+
+### **Impact**
+- Prevents the loss of emissions due to inactive bribe pools.
+- Ensures efficient utilization of allocated emissions.
+
+---
+
+These edge cases highlight the importance of correctly configuring and managing user-specific settings to ensure the **CompoundEmissionExtensionUpgradeable** contract operates efficiently and reliably.
 

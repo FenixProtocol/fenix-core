@@ -1,6 +1,7 @@
+
 # CompoundEmissionExtensionUpgradeable: Integration for Keeper
 
-This document describes how to integrate the `compoundEmissionClaimBatch` function within the `CompoundEmissionExtensionUpgradeable` contract for Keepers. The function allows batch compounding of emissions for multiple users by claiming rewards and locking them into veNFTs according to each user's configuration.
+This document describes how to integrate the `compoundEmissionClaimBatch` function within the `CompoundEmissionExtensionUpgradeable` contract for Keepers. The function allows batch compounding of emissions for multiple users by claiming rewards and splitting them into veNFT locks and bribe pools according to each user's configuration.
 
 ---
 
@@ -17,7 +18,8 @@ function compoundEmissionClaimBatch(ClaimParams[] calldata claimsParams_) extern
 Triggers the compounding of emissions for multiple users in a single batch operation. This includes:
 1. Claiming rewards from gauges for each user.
 2. Optionally claiming additional rewards via a Merkl proof.
-3. Locking the portion of emissions allocated for veNFT locks according to each user's configuration.
+3. Locking the portion of emissions allocated to veNFT locks according to each user's configuration.
+4. Sending the portion of emissions allocated to bribe pools to their respective targets.
 
 **Parameters:**
 - **claimsParams_**: An array of `ClaimParams` structs, where each struct contains the following fields:
@@ -81,13 +83,15 @@ Triggers the compounding of emissions for multiple users in a single batch opera
    Listen for the following events to verify the success of the operation:
    - `CreateLockFromCompoundEmission`: Indicates a new veNFT lock was created.
    - `CompoundEmissionToTargetLock`: Indicates tokens were deposited into an existing veNFT lock.
+   - `CompoundEmissionToBribePool`: Indicates tokens were distributed to a bribe pool.
 
 ---
 
 ## Example Use Case
 
 **Scenario:**
-The Keeper needs to compound emissions for two users, claiming rewards from specific gauges
+The Keeper needs to compound emissions for two users, claiming rewards from specific gauges and distributing them according to user configurations.
+
 **Solution:**
 1. Prepare the `ClaimParams` for each user.
 2. Call the `compoundEmissionClaimBatch` method with the array of claims.
@@ -119,4 +123,5 @@ compoundEmissionExtension.compoundEmissionClaimBatch(claims);
 
 - Keepers must ensure that all parameters in `ClaimParams` are correct and aligned with the users' configurations.
 - Proper gas estimation should be performed before calling the batch function to avoid out-of-gas errors.
-- Each user’s configuration and target locks will dictate how the claimed emissions are processed and distributed into veNFTs.
+- Each user’s configuration will dictate how the claimed emissions are split into veNFT locks and bribe pools.
+- The `CompoundEmissionExtensionUpgradeable` contract automatically validates gauge liveness and other constraints during execution.

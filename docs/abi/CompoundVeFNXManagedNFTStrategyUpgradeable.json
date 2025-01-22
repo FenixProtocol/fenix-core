@@ -52,6 +52,21 @@
   },
   {
     "inputs": [],
+    "name": "InvalidVeNFTTokenIds",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotAllowedActionWithManagedTokenId",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotOtherVeNFTsAvailable",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "RouteNotFound",
     "type": "error"
   },
@@ -63,6 +78,11 @@
   {
     "inputs": [],
     "name": "ZeroBalance",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroCompoundVeNFTsReward",
     "type": "error"
   },
   {
@@ -186,6 +206,37 @@
       }
     ],
     "name": "Erc20Recover",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "caller",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256[]",
+        "name": "tokenIds",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "Erc721Recover",
     "type": "event"
   },
   {
@@ -462,6 +513,39 @@
     "inputs": [
       {
         "internalType": "address[]",
+        "name": "bribes_",
+        "type": "address[]"
+      },
+      {
+        "internalType": "address[][]",
+        "name": "tokens_",
+        "type": "address[][]"
+      },
+      {
+        "internalType": "address",
+        "name": "recipient_",
+        "type": "address"
+      },
+      {
+        "internalType": "address[]",
+        "name": "tokensToRecover_",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "veNftTokenIdsToRecover_",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "claimBribesWithTokensRecover",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
         "name": "gauges_",
         "type": "address[]"
       }
@@ -474,6 +558,26 @@
   {
     "inputs": [],
     "name": "compound",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256[]",
+        "name": "tokenIds_",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "compoundVeNFTs",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "compoundVeNFTsAll",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -518,6 +622,29 @@
       }
     ],
     "name": "erc20Recover",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "recipient_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "tokenIds_",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "erc721Recover",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -676,6 +803,40 @@
         "internalType": "uint256",
         "name": "lockedRewards",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "name": "onERC721Received",
+    "outputs": [
+      {
+        "internalType": "bytes4",
+        "name": "",
+        "type": "bytes4"
       }
     ],
     "stateMutability": "nonpayable",

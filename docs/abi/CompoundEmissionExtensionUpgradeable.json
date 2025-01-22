@@ -1,0 +1,940 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "blastGovernor_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "AccessDenied",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AddressZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AnotherUserTargetLocks",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidCompoundEmissionParams",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidCreateLockConfig",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TargetPoolGaugeIsKilled",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "targetLockFromId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "targetTokenToId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ChangeEmissionTargetLock",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "pool",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "CompoundEmissionToBribePool",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "CompoundEmissionToTargetLock",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "CreateLockFromCompoundEmission",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "pool",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "CreateLockFromCompoundEmissionForBribePools",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "toLocksPercentage",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "toBribePoolsPercentage",
+        "type": "uint256"
+      }
+    ],
+    "name": "SetCompoundEmissionGeneralPercentages",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "pool",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "percentage",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ICompoundEmissionExtension.TargetPool[]",
+        "name": "targetBribePools",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "SetCompoundEmissionTargetBribePools",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "percentage",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ICompoundEmissionExtension.TargetLock[]",
+        "name": "targetLocks",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "SetCompoundEmissionTargetLocks",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "shouldBoosted",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "withPermanentLock",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "lockDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "managedTokenIdForAttach",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ICompoundEmissionExtension.CreateLockConfig",
+        "name": "config",
+        "type": "tuple"
+      }
+    ],
+    "name": "SetCreateLockConfig",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "shouldBoosted",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "withPermanentLock",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "lockDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "managedTokenIdForAttach",
+            "type": "uint256"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ICompoundEmissionExtension.CreateLockConfig",
+        "name": "config",
+        "type": "tuple"
+      }
+    ],
+    "name": "SetDefaultCreateLockConfig",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "COMPOUND_EMISSION_EXTENSION_ADMINISTRATOR_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "COMPOUND_KEEPER_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "targetTokenId_",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "newTokenId_",
+        "type": "uint256"
+      }
+    ],
+    "name": "changeEmissionTargetLockId",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "address[]",
+            "name": "gauges",
+            "type": "address[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address[]",
+                "name": "users",
+                "type": "address[]"
+              },
+              {
+                "internalType": "address[]",
+                "name": "tokens",
+                "type": "address[]"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "amounts",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes32[][]",
+                "name": "proofs",
+                "type": "bytes32[][]"
+              }
+            ],
+            "internalType": "struct IVoter.AggregateClaimMerklDataParams",
+            "name": "merkl",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct ICompoundEmissionExtension.ClaimParams",
+        "name": "claimParams_",
+        "type": "tuple"
+      }
+    ],
+    "name": "compoundEmisisonClaim",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "address[]",
+            "name": "gauges",
+            "type": "address[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address[]",
+                "name": "users",
+                "type": "address[]"
+              },
+              {
+                "internalType": "address[]",
+                "name": "tokens",
+                "type": "address[]"
+              },
+              {
+                "internalType": "uint256[]",
+                "name": "amounts",
+                "type": "uint256[]"
+              },
+              {
+                "internalType": "bytes32[][]",
+                "name": "proofs",
+                "type": "bytes32[][]"
+              }
+            ],
+            "internalType": "struct IVoter.AggregateClaimMerklDataParams",
+            "name": "merkl",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct ICompoundEmissionExtension.ClaimParams[]",
+        "name": "claimsParams_",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "compoundEmissionClaimBatch",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "defaultCreateLockConfig",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "shouldBoosted",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "withPermanentLock",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "lockDuration",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "managedTokenIdForAttach",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amountIn_",
+        "type": "uint256"
+      }
+    ],
+    "name": "getAmountOutToCompound",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "toTargetLocks",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "toTargetBribePools",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "getToBribePoolsPercentage",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "getToLocksPercentage",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target_",
+        "type": "address"
+      }
+    ],
+    "name": "getUserCreateLockConfig",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "shouldBoosted",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "withPermanentLock",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "lockDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "managedTokenIdForAttach",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICompoundEmissionExtension.CreateLockConfig",
+        "name": "createLockConfig",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target_",
+        "type": "address"
+      }
+    ],
+    "name": "getUserInfo",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "toLocksPercentage",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "toBribePoolsPercentage",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isCreateLockCustomConfig",
+        "type": "bool"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "shouldBoosted",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "withPermanentLock",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "lockDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "managedTokenIdForAttach",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICompoundEmissionExtension.CreateLockConfig",
+        "name": "createLockConfig",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "percentage",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICompoundEmissionExtension.TargetLock[]",
+        "name": "targetLocks",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "pool",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "percentage",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICompoundEmissionExtension.TargetPool[]",
+        "name": "targetBribePools",
+        "type": "tuple[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "blastGovernor_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "voter_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "votingEscrow_",
+        "type": "address"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "shouldUpdateGeneralPercentages",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "shouldUpdateTargetLocks",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "shouldUpdateTargetBribePools",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "toLocksPercentage",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "toBribePoolsPercentage",
+            "type": "uint256"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "tokenId",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "percentage",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct ICompoundEmissionExtension.TargetLock[]",
+            "name": "targetLocks",
+            "type": "tuple[]"
+          },
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "pool",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "percentage",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct ICompoundEmissionExtension.TargetPool[]",
+            "name": "targetsBribePools",
+            "type": "tuple[]"
+          }
+        ],
+        "internalType": "struct ICompoundEmissionExtension.UpdateCompoundEmissionConfigParams",
+        "name": "p_",
+        "type": "tuple"
+      }
+    ],
+    "name": "setCompoundEmissionConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "shouldBoosted",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "withPermanentLock",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "lockDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "managedTokenIdForAttach",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICompoundEmissionExtension.CreateLockConfig",
+        "name": "config_",
+        "type": "tuple"
+      }
+    ],
+    "name": "setCreateLockConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bool",
+            "name": "shouldBoosted",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "withPermanentLock",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "lockDuration",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "managedTokenIdForAttach",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct ICompoundEmissionExtension.CreateLockConfig",
+        "name": "config_",
+        "type": "tuple"
+      }
+    ],
+    "name": "setDefaultCreateLockConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "token",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "voter",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "votingEscrow",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

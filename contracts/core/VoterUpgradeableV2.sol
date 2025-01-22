@@ -660,19 +660,21 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
     }
 
     /**
-     * @notice Called during a compound emission claim process to handle gauge rewards, Merkl claims, and any locked portion.
-     * @dev Typically invoked by an extension contract that batches gauge reward claims and Merkl-based airdrops,
-     *      then calculates the amount to be locked and optionally transfers it for locking.
-     * @param target_ The user address on whose behalf rewards are being claimed.
-     * @param gauges_ The gauges to claim rewards from.
-     * @param merkl_ The Merkl claim parameters, including arrays of users, tokens, amounts, and proofs.
-     * @return amountOut The amount of tokens that should be locked by the extension, if any.
+     * @notice This function is called by the CompoundEmissionExtension to process a user’s reward claims
+     *  and determine how much of the claimed tokens will be routed into veNFT locks and/or bribe pools.
+     *
+     * @param target_ The address of the user for whom the emission claim is being processed.
+     * @param gauges_ The array of gauge addresses from which to claim rewards on behalf of `target_`.
+     * @param merkl_  Optional Merkle-based claim data (if the Voter supports Merkle claims).
+     *
+     * @return toTargetLocks      The portion of claimed tokens that should go into veNFT locks.
+     * @return toTargetBribePools The portion of claimed tokens that should go into bribe pools.
      */
     function onCompoundEmissionClaim(
         address target_,
         address[] calldata gauges_,
         AggregateClaimMerklDataParams calldata merkl_
-    ) external nonReentrant returns (uint256 amountOut) {
+    ) external nonReentrant returns (uint256 toTargetLocks, uint256 toTargetBribePools) {
         ICompoundEmissionExtension compoundEmissionExtensionCache = ICompoundEmissionExtension(compoundEmissionExtension);
         _checkSender(address(compoundEmissionExtension));
 
@@ -684,11 +686,14 @@ contract VoterUpgradeableV2 is IVoter, AccessControlUpgradeable, BlastGovernorCl
 
         _claimMerklRewardsFor(target_, merkl_);
 
-        amountOut = compoundEmissionExtensionCache.getAmountOutToLocks(target_, tokenCache.balanceOf(target_) - balanceBefore);
-
-        if (amountOut > 0) {
-            tokenCache.safeTransferFrom(target_, address(this), amountOut);
-            tokenCache.safeApprove(address(compoundEmissionExtensionCache), amountOut);
+        (toTargetLocks, toTargetBribePools) = compoundEmissionExtensionCache.getAmountOutToCompound(
+            target_,
+            tokenCache.balanceOf(target_) - balanceBefore
+        );
+        uint256 total = toTargetLocks + toTargetBribePools;
+        if (total > 0) {
+            tokenCache.safeTransferFrom(target_, address(this), total);
+            tokenCache.safeApprove(address(compoundEmissionExtensionCache), total);
         }
     }
 

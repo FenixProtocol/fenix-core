@@ -1,15 +1,11 @@
 import { loadFixture, time } from '@nomicfoundation/hardhat-toolbox/network-helpers';
-import { expect, use } from 'chai';
+import { expect } from 'chai';
+import { ContractTransactionResponse } from 'ethers';
 import { ethers } from 'hardhat';
-import { ERC20Mock, GaugeMock, VoterUpgradeableV2, VotingEscrowUpgradeableV2 } from '../../typechain-types';
-import { ERRORS, getAccessControlError } from '../utils/constants';
-import completeFixture, { CoreFixtureDeployed, deployERC20MockToken, deployVotingEscrow, SignersList } from '../utils/coreFixture';
-import { CompoundEmissionExtensionUpgradeable, Fenix } from '../../typechain-types';
-import { ContractTransactionResponse, Signature } from 'ethers';
-import {
-  CompoundEmissionExtensionUpgradeableMock,
-  CompoundEmissionExtensionUpgradeableMockInterface,
-} from '../../typechain-types/contracts/mocks/CompoundEmissionExtensionUpgradeableMock';
+import { BribeUpgradeable, Fenix, GaugeMock, VoterUpgradeableV2, VotingEscrowUpgradeableV2 } from '../../typechain-types';
+import { CompoundEmissionExtensionUpgradeableMock } from '../../typechain-types/contracts/mocks/CompoundEmissionExtensionUpgradeableMock';
+import { ERRORS } from '../utils/constants';
+import completeFixture, { CoreFixtureDeployed, deployERC20MockToken, SignersList } from '../utils/coreFixture';
 
 describe('CompoundEmissionExtensionUpgradeable', function () {
   let VotingEscrow: VotingEscrowUpgradeableV2;
@@ -18,6 +14,31 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
   let CompoundEmissionExtension: CompoundEmissionExtensionUpgradeableMock;
   let signers: SignersList;
   let deployed: CoreFixtureDeployed;
+  let updateCompoundEmissionClaimParams: UpdateCompoundEmissionClaimParams;
+  let pool1: { gauge: string; address: string; externalBribe: BribeUpgradeable };
+  let pool2: { gauge: string; address: string; externalBribe: BribeUpgradeable };
+
+  type UpdateCompoundEmissionClaimParams = {
+    shouldUpdateGeneralPercentages: boolean;
+    shouldUpdateTargetLocks: boolean;
+    shouldUpdateTargetBribePools: boolean;
+    toLocksPercentage: bigint;
+    toBribePoolsPercentage: bigint;
+    targetLocks: any[];
+    targetsBribePools: any[];
+  };
+
+  function getEmptyCompoundEmissionConfig(): UpdateCompoundEmissionClaimParams {
+    return {
+      shouldUpdateGeneralPercentages: false,
+      shouldUpdateTargetLocks: false,
+      shouldUpdateTargetBribePools: false,
+      toLocksPercentage: 0n,
+      toBribePoolsPercentage: 0n,
+      targetLocks: [],
+      targetsBribePools: [],
+    };
+  }
 
   beforeEach(async () => {
     deployed = await loadFixture(completeFixture);
@@ -38,6 +59,32 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
     }
 
     expect(await VotingEscrow.lastMintedTokenId()).to.be.eq(18);
+
+    updateCompoundEmissionClaimParams = getEmptyCompoundEmissionConfig();
+
+    let secondToken = await deployERC20MockToken(signers.deployer, 'T', 'T', 9);
+
+    let pool1Address = await deployed.v2PairFactory.createPair.staticCall(Fenix, secondToken, false);
+    await deployed.v2PairFactory.createPair(Fenix, secondToken, false);
+    await Voter.createV2Gauge(pool1Address);
+
+    let pool2Address = await deployed.v2PairFactory.createPair.staticCall(Fenix, secondToken, true);
+    await deployed.v2PairFactory.createPair(Fenix, secondToken, true);
+    await Voter.createV2Gauge(pool2Address);
+
+    let gauge1 = await Voter.poolToGauge(pool1Address);
+    pool1 = {
+      gauge: gauge1,
+      address: pool1Address,
+      externalBribe: await ethers.getContractAt('BribeUpgradeable', (await Voter.getGaugeState(gauge1)).externalBribe),
+    };
+
+    let gauge2 = await Voter.poolToGauge(pool2Address);
+    pool2 = {
+      gauge: gauge2,
+      address: pool2Address,
+      externalBribe: await ethers.getContractAt('BribeUpgradeable', (await Voter.getGaugeState(gauge2)).externalBribe),
+    };
   });
 
   describe('Deployment', async () => {
@@ -182,13 +229,13 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
       expect(user1Info.targetLocks).to.be.deep.eq([]);
       expect(user1Info.targetLocks).to.be.length(0);
       expect(user1Info.createLockConfig).to.be.deep.eq([false, false, 15724800, 0]);
-      expect(user1Info.isCustomConfig).to.be.false;
+      expect(user1Info.isCreateLockCustomConfig).to.be.false;
 
       expect(user2Info.toLocksPercentage).to.be.eq(0);
       expect(user2Info.targetLocks).to.be.deep.eq([]);
       expect(user2Info.targetLocks).to.be.length(0);
       expect(user2Info.createLockConfig).to.be.deep.eq([false, false, 15724800, 0]);
-      expect(user2Info.isCustomConfig).to.be.false;
+      expect(user2Info.isCreateLockCustomConfig).to.be.false;
 
       expect(await CompoundEmissionExtension.getUserCreateLockConfig(signers.otherUser1)).to.be.deep.eq([false, false, 15724800, 0]);
 
@@ -216,13 +263,13 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
         expect(user1Info.targetLocks).to.be.deep.eq([]);
         expect(user1Info.targetLocks).to.be.length(0);
         expect(user1Info.createLockConfig).to.be.deep.eq([true, true, 86400, 1]);
-        expect(user1Info.isCustomConfig).to.be.true;
+        expect(user1Info.isCreateLockCustomConfig).to.be.true;
 
         expect(user2Info.toLocksPercentage).to.be.eq(0);
         expect(user2Info.targetLocks).to.be.deep.eq([]);
         expect(user2Info.targetLocks).to.be.length(0);
         expect(user2Info.createLockConfig).to.be.deep.eq([false, false, 15724800, 0]);
-        expect(user2Info.isCustomConfig).to.be.false;
+        expect(user2Info.isCreateLockCustomConfig).to.be.false;
 
         expect(await CompoundEmissionExtension.getUserCreateLockConfig(signers.otherUser1)).to.be.deep.eq([true, true, 86400, 1]);
 
@@ -252,13 +299,13 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
           expect(user1Info.targetLocks).to.be.deep.eq([]);
           expect(user1Info.targetLocks).to.be.length(0);
           expect(user1Info.createLockConfig).to.be.deep.eq([true, true, 86400, 1]);
-          expect(user1Info.isCustomConfig).to.be.true;
+          expect(user1Info.isCreateLockCustomConfig).to.be.true;
 
           expect(user2Info.toLocksPercentage).to.be.eq(0);
           expect(user2Info.targetLocks).to.be.deep.eq([]);
           expect(user2Info.targetLocks).to.be.length(0);
           expect(user2Info.createLockConfig).to.be.deep.eq([true, false, 157864, 2]);
-          expect(user2Info.isCustomConfig).to.be.true;
+          expect(user2Info.isCreateLockCustomConfig).to.be.true;
 
           expect(await CompoundEmissionExtension.getUserCreateLockConfig(signers.otherUser1)).to.be.deep.eq([true, true, 86400, 1]);
 
@@ -288,13 +335,13 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
             expect(user1Info.targetLocks).to.be.deep.eq([]);
             expect(user1Info.targetLocks).to.be.length(0);
             expect(user1Info.createLockConfig).to.be.deep.eq([false, false, 15724800, 0]);
-            expect(user1Info.isCustomConfig).to.be.false;
+            expect(user1Info.isCreateLockCustomConfig).to.be.false;
 
             expect(user2Info.toLocksPercentage).to.be.eq(0);
             expect(user2Info.targetLocks).to.be.deep.eq([]);
             expect(user2Info.targetLocks).to.be.length(0);
             expect(user2Info.createLockConfig).to.be.deep.eq([true, false, 157864, 2]);
-            expect(user2Info.isCustomConfig).to.be.true;
+            expect(user2Info.isCreateLockCustomConfig).to.be.true;
 
             expect(await CompoundEmissionExtension.getUserCreateLockConfig(signers.otherUser1)).to.be.deep.eq([false, false, 15724800, 0]);
 
@@ -323,13 +370,13 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
               expect(user1Info.targetLocks).to.be.deep.eq([]);
               expect(user1Info.targetLocks).to.be.length(0);
               expect(user1Info.createLockConfig).to.be.deep.eq([false, false, 15724800, 0]);
-              expect(user1Info.isCustomConfig).to.be.false;
+              expect(user1Info.isCreateLockCustomConfig).to.be.false;
 
               expect(user2Info.toLocksPercentage).to.be.eq(0);
               expect(user2Info.targetLocks).to.be.deep.eq([]);
               expect(user2Info.targetLocks).to.be.length(0);
               expect(user2Info.createLockConfig).to.be.deep.eq([false, true, 0, 0]);
-              expect(user2Info.isCustomConfig).to.be.true;
+              expect(user2Info.isCreateLockCustomConfig).to.be.true;
 
               expect(await CompoundEmissionExtension.getUserCreateLockConfig(signers.otherUser1)).to.be.deep.eq([
                 false,
@@ -377,58 +424,455 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
     describe('Should fail if', async () => {
       it('toLocksPercentage more then 100%', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('1') + 1n;
+
         await expect(
-          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('1') + 1n, []),
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
         ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
       });
-      it('toLocksPercentage > 0, but user not provided any target locks', async () => {
+
+      it('toBribePoolsPercentage more then 100%', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('1') + 1n;
+
         await expect(
-          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('1'), []),
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+      });
+
+      it('toLocksPercentage + toBribePoolsPercentage more then 100%', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.5') + 1n;
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5');
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.5');
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5') + 1n;
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+      });
+
+      it('toBribePoolsPercentage > 0, but user not provided any target bribe pools', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('1');
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+      });
+
+      it('toLocksPercentage > 0, but user not provided any target locks', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('1');
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
         ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
       });
 
       it('setup locks ids not own by user', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.toLocksPercentage = 1n;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 11, percentage: ethers.parseEther('1') }];
         await expect(
-          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(1, [
-            { tokenId: 11, lockPercentage: ethers.parseEther('1') },
-          ]),
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
         ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'AnotherUserTargetLocks');
+
+        updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 1, percentage: ethers.parseEther('1') }];
+
         await expect(
-          CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(1, [
-            { tokenId: 1, lockPercentage: ethers.parseEther('1') },
-          ]),
+          CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
         ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'AnotherUserTargetLocks');
       });
-      it('toLocksPercentage == 0, but user provided any target locks', async () => {
+
+      it('toLocksPercentage == 0, but user provided any target locks to update', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 1, percentage: ethers.parseEther('1') }];
+
         await expect(
-          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(0, [
-            { tokenId: 1, lockPercentage: ethers.parseEther('1') },
-          ]),
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+      });
+
+      it('toBribePools == 0, but user provided any pools to update', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+        updateCompoundEmissionClaimParams.targetsBribePools = [{ pool: pool1.address, percentage: ethers.parseEther('1') }];
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+      });
+
+      it('any target locks has 0 percentage', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('1');
+        updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 1, percentage: 0 }];
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+      });
+
+      it('any target bribe pool has 0 percentage', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('1');
+        updateCompoundEmissionClaimParams.targetsBribePools = [{ pool: pool1.address, percentage: 0 }];
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+      });
+
+      it('sum provided bribe pools for setup not eq 100%', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('1');
+        updateCompoundEmissionClaimParams.targetsBribePools = [
+          { pool: signers.otherUser1, percentage: ethers.parseEther('0.5') },
+          { pool: signers.otherUser2, percentage: ethers.parseEther('0.5') + 1n },
+        ];
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+
+        updateCompoundEmissionClaimParams.targetsBribePools = [
+          { pool: signers.otherUser1, percentage: ethers.parseEther('0.5') - 1n },
+          { pool: signers.otherUser2, percentage: ethers.parseEther('0.5') },
+        ];
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
         ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
       });
 
       it('sum provided locks for setup not eq 100%', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('1');
+        updateCompoundEmissionClaimParams.targetLocks = [
+          { tokenId: 1, percentage: ethers.parseEther('0.5') },
+          { tokenId: 2, percentage: ethers.parseEther('0.5') + 1n },
+        ];
+
         await expect(
-          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('1'), [
-            { tokenId: 1, lockPercentage: ethers.parseEther('0.5') },
-            { tokenId: 2, lockPercentage: ethers.parseEther('0.5') + 1n },
-          ]),
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
         ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+        updateCompoundEmissionClaimParams.targetLocks = [
+          { tokenId: 1, percentage: ethers.parseEther('0.5') - 1n },
+          { tokenId: 2, percentage: ethers.parseEther('0.5') },
+        ];
+
         await expect(
-          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('1'), [
-            { tokenId: 1, lockPercentage: ethers.parseEther('0.5') - 1n },
-            { tokenId: 2, lockPercentage: ethers.parseEther('0.5') },
-          ]),
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
         ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+      });
+
+      it('any target bribe pool address is zero', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.01');
+        updateCompoundEmissionClaimParams.targetsBribePools = [{ pool: ethers.ZeroAddress, percentage: ethers.parseEther('1') }];
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'InvalidCompoundEmissionParams');
+      });
+
+      it('any target bribe pool gauge is killed', async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.01');
+        updateCompoundEmissionClaimParams.targetsBribePools = [{ pool: pool1.address, percentage: ethers.parseEther('1') }];
+
+        expect(await Voter.isAlive(pool1.gauge)).to.be.true;
+
+        await Voter.killGauge(pool1.gauge);
+
+        expect(await Voter.isAlive(pool1.address)).to.be.false;
+
+        await expect(
+          CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams),
+        ).to.be.revertedWithCustomError(CompoundEmissionExtension, 'TargetPoolGaugeIsKilled');
+      });
+    });
+    describe('Success clear targets list, when setup zero percentage', async () => {
+      let tx: any;
+      beforeEach(async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5');
+        updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 2, percentage: ethers.parseEther('1') }];
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.25');
+        updateCompoundEmissionClaimParams.targetsBribePools = [{ pool: pool1.address, percentage: ethers.parseEther('1') }];
+        await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+        updateCompoundEmissionClaimParams.toLocksPercentage = 0n;
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = 0n;
+        updateCompoundEmissionClaimParams.targetsBribePools = [];
+        updateCompoundEmissionClaimParams.targetLocks = [];
+
+        tx = await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+      });
+
+      it('change information', async () => {
+        expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(0);
+        expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser1)).to.be.eq(0);
+
+        expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser2)).to.be.eq(0);
+        expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser2)).to.be.eq(0);
+
+        let user1Info = await CompoundEmissionExtension.getUserInfo(signers.otherUser1);
+        let user2Info = await CompoundEmissionExtension.getUserInfo(signers.otherUser2);
+        expect(user1Info.toLocksPercentage).to.be.eq(0);
+        expect(user1Info.toBribePoolsPercentage).to.be.eq(0);
+        expect(user1Info.targetLocks).to.be.deep.eq([]);
+        expect(user1Info.targetLocks).to.be.length(0);
+        expect(user1Info.targetBribePools).to.be.length(0);
+        expect(user1Info.targetBribePools).to.be.deep.eq([]);
+
+        expect(user2Info.toLocksPercentage).to.be.eq(0);
+        expect(user2Info.toBribePoolsPercentage).to.be.eq(0);
+        expect(user2Info.targetLocks).to.be.deep.eq([]);
+        expect(user2Info.targetLocks).to.be.length(0);
+        expect(user2Info.targetBribePools).to.be.deep.eq([]);
+        expect(user2Info.targetBribePools).to.be.length(0);
+      });
+
+      it('emit events', async () => {
+        await expect(tx).to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionGeneralPercentages').withArgs(signers.otherUser1, 0, 0);
+        await expect(tx).to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetLocks').withArgs(signers.otherUser1, []);
+        await expect(tx).to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetBribePools').withArgs(signers.otherUser1, []);
+      });
+    });
+
+    describe('Success update only targets without update percentage', async () => {
+      let tx: any;
+      beforeEach(async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5');
+        updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 2, percentage: ethers.parseEther('1') }];
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.25');
+        updateCompoundEmissionClaimParams.targetsBribePools = [{ pool: pool1.address, percentage: ethers.parseEther('1') }];
+
+        await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = false;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+
+        updateCompoundEmissionClaimParams.toLocksPercentage = 0n;
+        updateCompoundEmissionClaimParams.targetLocks = [
+          { tokenId: 1, percentage: ethers.parseEther('0.6') },
+          { tokenId: 2, percentage: ethers.parseEther('0.4') },
+        ];
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = 0n;
+        updateCompoundEmissionClaimParams.targetsBribePools = [{ pool: pool2.address, percentage: ethers.parseEther('1') }];
+
+        tx = await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+      });
+
+      it('change information', async () => {
+        expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.5'));
+        expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.25'));
+
+        expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser2)).to.be.eq(0);
+        expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser2)).to.be.eq(0);
+
+        let user1Info = await CompoundEmissionExtension.getUserInfo(signers.otherUser1);
+        let user2Info = await CompoundEmissionExtension.getUserInfo(signers.otherUser2);
+        expect(user1Info.toLocksPercentage).to.be.eq(ethers.parseEther('0.5'));
+        expect(user1Info.toBribePoolsPercentage).to.be.eq(ethers.parseEther('0.25'));
+        expect(user1Info.targetLocks).to.be.deep.eq([
+          [1, ethers.parseEther('0.6')],
+          [2, ethers.parseEther('0.4')],
+        ]);
+        expect(user1Info.targetLocks).to.be.length(2);
+        expect(user1Info.targetBribePools).to.be.length(1);
+        expect(user1Info.targetBribePools).to.be.deep.eq([[pool2.address, ethers.parseEther('1')]]);
+
+        expect(user2Info.toLocksPercentage).to.be.eq(0);
+        expect(user2Info.toBribePoolsPercentage).to.be.eq(0);
+        expect(user2Info.targetLocks).to.be.deep.eq([]);
+        expect(user2Info.targetLocks).to.be.length(0);
+        expect(user2Info.targetBribePools).to.be.deep.eq([]);
+        expect(user2Info.targetBribePools).to.be.length(0);
+      });
+
+      it('emit events', async () => {
+        await expect(tx).to.be.not.emit(CompoundEmissionExtension, 'SetCompoundEmissionGeneralPercentages');
+        await expect(tx)
+          .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetLocks')
+          .withArgs(signers.otherUser1, (t: any[]) => {
+            expect(t).to.be.length(2);
+            expect(t[0][0]).to.be.eq(1n);
+            expect(t[0][1]).to.be.eq(ethers.parseEther('0.6'));
+            expect(t[1][0]).to.be.eq(2n);
+            expect(t[1][1]).to.be.eq(ethers.parseEther('0.4'));
+
+            return true;
+          });
+        await expect(tx)
+          .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetBribePools')
+          .withArgs(signers.otherUser1, (t: any[]) => {
+            expect(t).to.be.length(1);
+            expect(t[0][0]).to.be.eq(pool2.address);
+            expect(t[0][1]).to.be.eq(ethers.parseEther('1'));
+            return true;
+          });
+      });
+    });
+
+    describe('Success update compound emission config for first user, 50% to one lock, 25% to one pool', async () => {
+      let tx: any;
+      beforeEach(async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5');
+        updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 2, percentage: ethers.parseEther('1') }];
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.25');
+        updateCompoundEmissionClaimParams.targetsBribePools = [{ pool: pool1.address, percentage: ethers.parseEther('1') }];
+
+        tx = await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+      });
+
+      it('change information', async () => {
+        expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.5'));
+        expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.25'));
+
+        expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser2)).to.be.eq(0);
+        expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser2)).to.be.eq(0);
+
+        let user1Info = await CompoundEmissionExtension.getUserInfo(signers.otherUser1);
+        let user2Info = await CompoundEmissionExtension.getUserInfo(signers.otherUser2);
+        expect(user1Info.toLocksPercentage).to.be.eq(ethers.parseEther('0.5'));
+        expect(user1Info.toBribePoolsPercentage).to.be.eq(ethers.parseEther('0.25'));
+        expect(user1Info.targetLocks).to.be.deep.eq([[2, ethers.parseEther('1')]]);
+        expect(user1Info.targetLocks).to.be.length(1);
+        expect(user1Info.targetBribePools).to.be.length(1);
+        expect(user1Info.targetBribePools).to.be.deep.eq([[pool1.address, ethers.parseEther('1')]]);
+
+        expect(user2Info.toLocksPercentage).to.be.eq(0);
+        expect(user2Info.toBribePoolsPercentage).to.be.eq(0);
+        expect(user2Info.targetLocks).to.be.deep.eq([]);
+        expect(user2Info.targetLocks).to.be.length(0);
+        expect(user2Info.targetBribePools).to.be.deep.eq([]);
+        expect(user2Info.targetBribePools).to.be.length(0);
+      });
+
+      it('emit events', async () => {
+        await expect(tx)
+          .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionGeneralPercentages')
+          .withArgs(signers.otherUser1, ethers.parseEther('0.5'), ethers.parseEther('0.25'));
+        await expect(tx)
+          .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetLocks')
+          .withArgs(signers.otherUser1, (t: any[]) => {
+            expect(t).to.be.length(1);
+            expect(t[0][0]).to.be.eq(2);
+            expect(t[0][1]).to.be.eq(ethers.parseEther('1'));
+            return true;
+          });
+        await expect(tx)
+          .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetBribePools')
+          .withArgs(signers.otherUser1, (t: any[]) => {
+            expect(t).to.be.length(1);
+            expect(t[0][0]).to.be.eq(pool1.address);
+            expect(t[0][1]).to.be.eq(ethers.parseEther('1'));
+            return true;
+          });
+      });
+    });
+
+    describe('Success update compound emission config for second user, 0% to locks, 65% to two pools', async () => {
+      let tx: any;
+      beforeEach(async () => {
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+
+        updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.65');
+        updateCompoundEmissionClaimParams.targetsBribePools = [
+          { pool: pool2.address, percentage: ethers.parseEther('0.93') },
+          { pool: pool1.address, percentage: ethers.parseEther('0.07') },
+        ];
+
+        tx = await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+      });
+
+      it('change information', async () => {
+        expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(0);
+        expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser1)).to.be.eq(0);
+
+        expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser2)).to.be.eq(0);
+        expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser2)).to.be.eq(ethers.parseEther('0.65'));
+
+        let user1Info = await CompoundEmissionExtension.getUserInfo(signers.otherUser1);
+        expect(user1Info.toLocksPercentage).to.be.eq(0);
+        expect(user1Info.toBribePoolsPercentage).to.be.eq(0);
+        expect(user1Info.targetLocks).to.be.deep.eq([]);
+        expect(user1Info.targetLocks).to.be.length(0);
+        expect(user1Info.targetBribePools).to.be.deep.eq([]);
+        expect(user1Info.targetBribePools).to.be.length(0);
+
+        let user2Info = await CompoundEmissionExtension.getUserInfo(signers.otherUser2);
+        expect(user2Info.toLocksPercentage).to.be.eq(0);
+        expect(user2Info.toBribePoolsPercentage).to.be.eq(ethers.parseEther('0.65'));
+        expect(user2Info.targetLocks).to.be.deep.eq([]);
+        expect(user2Info.targetLocks).to.be.length(0);
+        expect(user2Info.targetBribePools).to.be.length(2);
+        expect(user2Info.targetBribePools).to.be.deep.eq([
+          [pool2.address, ethers.parseEther('0.93')],
+          [pool1.address, ethers.parseEther('0.07')],
+        ]);
+      });
+
+      it('emit events', async () => {
+        await expect(tx)
+          .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionGeneralPercentages')
+          .withArgs(signers.otherUser2, 0, ethers.parseEther('0.65'));
+        await expect(tx).to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetLocks').withArgs(signers.otherUser2, []);
+        await expect(tx)
+          .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetBribePools')
+          .withArgs(signers.otherUser2, (t: any[]) => {
+            expect(t).to.be.length(2);
+            expect(t[0][0]).to.be.eq(pool2.address);
+            expect(t[0][1]).to.be.eq(ethers.parseEther('0.93'));
+            expect(t[1][0]).to.be.eq(pool1.address);
+            expect(t[1][1]).to.be.eq(ethers.parseEther('0.07'));
+            return true;
+          });
       });
     });
 
     describe('Success update compound emission config for first user, 100%, to one lock', async () => {
       let tx: any;
       beforeEach(async () => {
-        tx = await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('1'), [
-          { tokenId: 2, lockPercentage: ethers.parseEther('1') },
-        ]);
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('1');
+        updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 2, percentage: ethers.parseEther('1') }];
+        tx = await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
       });
 
       it('change information', async () => {
@@ -440,16 +884,23 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
         expect(user1Info.toLocksPercentage).to.be.eq(ethers.parseEther('1'));
         expect(user1Info.targetLocks).to.be.deep.eq([[2, ethers.parseEther('1')]]);
         expect(user1Info.targetLocks).to.be.length(1);
+        expect(user1Info.targetBribePools).to.be.deep.eq([]);
+        expect(user1Info.targetBribePools).to.be.length(0);
 
         expect(user2Info.toLocksPercentage).to.be.eq(0);
         expect(user2Info.targetLocks).to.be.deep.eq([]);
         expect(user2Info.targetLocks).to.be.length(0);
+        expect(user2Info.targetBribePools).to.be.deep.eq([]);
+        expect(user2Info.targetBribePools).to.be.length(0);
       });
 
       it('emit events', async () => {
         await expect(tx)
-          .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionConfig')
-          .withArgs(signers.otherUser1, ethers.parseEther('1'), (t: any[]) => {
+          .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionGeneralPercentages')
+          .withArgs(signers.otherUser1, ethers.parseEther('1'), 0);
+        await expect(tx)
+          .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetLocks')
+          .withArgs(signers.otherUser1, (t: any[]) => {
             expect(t).to.be.length(1);
             expect(t[0][0]).to.be.eq(2);
             expect(t[0][1]).to.be.eq(ethers.parseEther('1'));
@@ -460,10 +911,15 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
       describe('Success update compound emission config for second user, 50%, to two diff lock 25% 75%', async () => {
         let tx: any;
         beforeEach(async () => {
-          tx = await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(ethers.parseEther('0.5'), [
-            { tokenId: 13, lockPercentage: ethers.parseEther('0.25') },
-            { tokenId: 14, lockPercentage: ethers.parseEther('0.75') },
-          ]);
+          updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+          updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5');
+          updateCompoundEmissionClaimParams.targetLocks = [
+            { tokenId: 13, percentage: ethers.parseEther('0.25') },
+            { tokenId: 14, percentage: ethers.parseEther('0.75') },
+          ];
+
+          tx = await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
         });
 
         it('change information', async () => {
@@ -475,6 +931,8 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
           expect(user1Info.toLocksPercentage).to.be.eq(ethers.parseEther('1'));
           expect(user1Info.targetLocks).to.be.deep.eq([[2, ethers.parseEther('1')]]);
           expect(user1Info.targetLocks).to.be.length(1);
+          expect(user1Info.targetBribePools).to.be.deep.eq([]);
+          expect(user1Info.targetBribePools).to.be.length(0);
 
           expect(user2Info.toLocksPercentage).to.be.eq(ethers.parseEther('0.5'));
           expect(user2Info.targetLocks).to.be.deep.eq([
@@ -482,33 +940,39 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
             [14, ethers.parseEther('0.75')],
           ]);
           expect(user2Info.targetLocks).to.be.length(2);
+          expect(user2Info.targetBribePools).to.be.deep.eq([]);
+          expect(user2Info.targetBribePools).to.be.length(0);
         });
 
         it('emit events', async () => {
           await expect(tx)
-            .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionConfig')
-            .withArgs(
-              signers.otherUser2,
-              ethers.parseEther('0.5'),
+            .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionGeneralPercentages')
+            .withArgs(signers.otherUser2, ethers.parseEther('0.5'), 0);
 
-              (t: any[]) => {
-                expect(t).to.be.length(2);
-                expect(t[0][0]).to.be.eq(13);
-                expect(t[0][1]).to.be.eq(ethers.parseEther('0.25'));
-                expect(t[1][0]).to.be.eq(14);
-                expect(t[1][1]).to.be.eq(ethers.parseEther('0.75'));
-                return true;
-              },
-            );
+          await expect(tx)
+            .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetLocks')
+            .withArgs(signers.otherUser2, (t: any[]) => {
+              expect(t).to.be.length(2);
+              expect(t[0][0]).to.be.eq(13);
+              expect(t[0][1]).to.be.eq(ethers.parseEther('0.25'));
+              expect(t[1][0]).to.be.eq(14);
+              expect(t[1][1]).to.be.eq(ethers.parseEther('0.75'));
+              return true;
+            });
         });
 
         describe('Success update compound emission config for first user, 35%, to two diff lock, 60%, 40%, and second lock is zero, to create new lock in future', async () => {
           let tx: any;
           beforeEach(async () => {
-            tx = await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('0.35'), [
-              { tokenId: 1, lockPercentage: ethers.parseEther('0.60') },
-              { tokenId: 0, lockPercentage: ethers.parseEther('0.40') },
-            ]);
+            updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+            updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+            updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.35');
+            updateCompoundEmissionClaimParams.targetLocks = [
+              { tokenId: 1, percentage: ethers.parseEther('0.60') },
+              { tokenId: 0, percentage: ethers.parseEther('0.40') },
+            ];
+
+            tx = await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
           });
 
           it('change information', async () => {
@@ -534,26 +998,29 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
           it('emit events', async () => {
             await expect(tx)
-              .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionConfig')
-              .withArgs(
-                signers.otherUser1,
-                ethers.parseEther('0.35'),
+              .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionGeneralPercentages')
+              .withArgs(signers.otherUser1, ethers.parseEther('0.35'), 0);
 
-                (t: any[]) => {
-                  expect(t).to.be.length(2);
-                  expect(t[0][0]).to.be.eq(1);
-                  expect(t[0][1]).to.be.eq(ethers.parseEther('0.6'));
-                  expect(t[1][0]).to.be.eq(0);
-                  expect(t[1][1]).to.be.eq(ethers.parseEther('0.4'));
-                  return true;
-                },
-              );
+            await expect(tx)
+              .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetLocks')
+              .withArgs(signers.otherUser1, (t: any[]) => {
+                expect(t).to.be.length(2);
+                expect(t[0][0]).to.be.eq(1);
+                expect(t[0][1]).to.be.eq(ethers.parseEther('0.6'));
+                expect(t[1][0]).to.be.eq(0);
+                expect(t[1][1]).to.be.eq(ethers.parseEther('0.4'));
+                return true;
+              });
           });
 
           describe('Success update compound emission config for second user, 0 to locks', async () => {
             let tx: any;
             beforeEach(async () => {
-              tx = await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(0, []);
+              updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+              updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+              updateCompoundEmissionClaimParams.toLocksPercentage = 0n;
+              updateCompoundEmissionClaimParams.targetLocks = [];
+              tx = await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
             });
 
             it('change information', async () => {
@@ -576,8 +1043,10 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
             it('emit events', async () => {
               await expect(tx)
-                .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionConfig')
-                .withArgs(signers.otherUser2, ethers.parseEther('0'), []);
+                .to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionGeneralPercentages')
+                .withArgs(signers.otherUser2, 0, 0);
+
+              await expect(tx).to.be.emit(CompoundEmissionExtension, 'SetCompoundEmissionTargetLocks').withArgs(signers.otherUser2, []);
             });
           });
         });
@@ -599,20 +1068,25 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
       beforeEach(async () => {
         await CompoundEmissionExtension.mock_setupVoter(signers.deployer);
 
-        await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('1'), [
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('1');
+        updateCompoundEmissionClaimParams.targetLocks = [
           {
             tokenId: 1,
-            lockPercentage: ethers.parseEther('0.1'),
+            percentage: ethers.parseEther('0.1'),
           },
           {
             tokenId: 2,
-            lockPercentage: ethers.parseEther('0.5'),
+            percentage: ethers.parseEther('0.5'),
           },
           {
             tokenId: 3,
-            lockPercentage: ethers.parseEther('0.4'),
+            percentage: ethers.parseEther('0.4'),
           },
-        ]);
+        ];
+
+        await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
       });
 
       it('call without effect if targetTokenId not present in targetLocks list', async () => {
@@ -662,38 +1136,48 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
     describe('during transfer to another user', async () => {
       beforeEach(async () => {
-        await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('1'), [
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('1');
+        updateCompoundEmissionClaimParams.targetLocks = [
           {
             tokenId: 1,
-            lockPercentage: ethers.parseEther('0.1'),
+            percentage: ethers.parseEther('0.1'),
           },
           {
             tokenId: 2,
-            lockPercentage: ethers.parseEther('0.5'),
+            percentage: ethers.parseEther('0.5'),
           },
           {
             tokenId: 3,
-            lockPercentage: ethers.parseEther('0.4'),
+            percentage: ethers.parseEther('0.4'),
           },
-        ]);
-        await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(ethers.parseEther('0.1'), [
+        ];
+        await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.1');
+        updateCompoundEmissionClaimParams.targetLocks = [
           {
             tokenId: 11,
-            lockPercentage: ethers.parseEther('0.5'),
+            percentage: ethers.parseEther('0.5'),
           },
           {
             tokenId: 12,
-            lockPercentage: ethers.parseEther('0.4'),
+            percentage: ethers.parseEther('0.4'),
           },
           {
             tokenId: 12,
-            lockPercentage: ethers.parseEther('0.06'),
+            percentage: ethers.parseEther('0.06'),
           },
           {
             tokenId: 13,
-            lockPercentage: ethers.parseEther('0.04'),
+            percentage: ethers.parseEther('0.04'),
           },
-        ]);
+        ];
+
+        await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
       });
 
       it('ignore, if transfer token not present in targets lock list', async () => {
@@ -732,41 +1216,48 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
     });
     describe('during merge locks', async () => {
       beforeEach(async () => {
-        await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('1'), [
+        updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+        updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('1');
+        updateCompoundEmissionClaimParams.targetLocks = [
           {
             tokenId: 1,
-            lockPercentage: ethers.parseEther('0.1'),
+            percentage: ethers.parseEther('0.1'),
           },
           {
             tokenId: 2,
-            lockPercentage: ethers.parseEther('0.5'),
+            percentage: ethers.parseEther('0.5'),
           },
           {
             tokenId: 3,
-            lockPercentage: ethers.parseEther('0.4'),
+            percentage: ethers.parseEther('0.4'),
           },
-        ]);
-        await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(ethers.parseEther('0.1'), [
+        ];
+
+        await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+        updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.1');
+        updateCompoundEmissionClaimParams.targetLocks = [
           {
             tokenId: 11,
-            lockPercentage: ethers.parseEther('0.5'),
+            percentage: ethers.parseEther('0.5'),
           },
           {
             tokenId: 12,
-            lockPercentage: ethers.parseEther('0.4'),
+            percentage: ethers.parseEther('0.4'),
           },
           {
             tokenId: 12,
-            lockPercentage: ethers.parseEther('0.06'),
+            percentage: ethers.parseEther('0.06'),
           },
           {
             tokenId: 13,
-            lockPercentage: ethers.parseEther('0.04'),
+            percentage: ethers.parseEther('0.04'),
           },
-        ]);
+        ];
+        await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
       });
 
-      it('ignore, if tokn from merge not present in targets lock list', async () => {
+      it('ignore, if token from merge not present in targets lock list', async () => {
         await expect(VotingEscrow.connect(signers.otherUser1).merge(4, 5)).to.be.not.emit(
           CompoundEmissionExtension,
           'ChangeEmissionTargetLock',
@@ -809,43 +1300,93 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
   describe('getAmountOutToLocks should success return calculated amount to locks from input', async () => {
     it('user not setup lock percentage', async () => {
       expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(0);
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, 0)).to.be.eq(0);
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, 1)).to.be.eq(0);
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, 1e9)).to.be.eq(0);
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, ethers.parseEther('1'))).to.be.eq(0);
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 0)).toTargetLocks).to.be.eq(0);
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 0)).toTargetBribePools).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1)).toTargetLocks).to.be.eq(0);
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1)).toTargetBribePools).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1e9)).toTargetLocks).to.be.eq(0);
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1e9)).toTargetBribePools).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, ethers.parseEther('1'))).toTargetLocks).to.be.eq(
+        0,
+      );
+      expect(
+        (await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, ethers.parseEther('1'))).toTargetBribePools,
+      ).to.be.eq(0);
     });
 
     it('user setup 100% to locks percentage', async () => {
-      await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('1'), [
-        { tokenId: 1, lockPercentage: ethers.parseEther('1') },
-      ]);
-      expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('1'));
+      updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+      updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+      updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('1');
+      updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 1, percentage: ethers.parseEther('1') }];
 
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, 0)).to.be.eq(0);
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, 1)).to.be.eq(1);
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, 1e9)).to.be.eq(1e9);
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, ethers.parseEther('1'))).to.be.eq(
+      await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+
+      expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('1'));
+      expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser1)).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 0)).toTargetLocks).to.be.eq(0);
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 0)).toTargetBribePools).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1)).toTargetLocks).to.be.eq(1);
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1)).toTargetBribePools).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1e9)).toTargetLocks).to.be.eq(1e9);
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1e9)).toTargetBribePools).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, ethers.parseEther('1'))).toTargetLocks).to.be.eq(
         ethers.parseEther('1'),
       );
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, ethers.parseEther('12345678.87654321'))).to.be.eq(
-        ethers.parseEther('12345678.87654321'),
-      );
-    });
-    it('user setup 10% to locks percentage', async () => {
-      await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('0.1'), [
-        { tokenId: 1, lockPercentage: ethers.parseEther('1') },
-      ]);
-      expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.1'));
+      expect(
+        (await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, ethers.parseEther('1'))).toTargetBribePools,
+      ).to.be.eq(0);
 
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, 0)).to.be.eq(0);
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, 1)).to.be.eq(0);
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, 1e9)).to.be.eq(1e8);
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, ethers.parseEther('1'))).to.be.eq(
+      expect(
+        (await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, ethers.parseEther('12345678.87654321'))).toTargetLocks,
+      ).to.be.eq(ethers.parseEther('12345678.87654321'));
+      expect(
+        (await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, ethers.parseEther('12345678.87654321')))
+          .toTargetBribePools,
+      ).to.be.eq(0);
+    });
+
+    it('user setup 10% to locks percentage, 0% to bribe pools', async () => {
+      updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+      updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+      updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.1');
+      updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 1, percentage: ethers.parseEther('1') }];
+
+      await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+
+      expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.1'));
+      expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser1)).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 0)).toTargetLocks).to.be.eq(0);
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 0)).toTargetBribePools).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1)).toTargetLocks).to.be.eq(0);
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1)).toTargetBribePools).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1e9)).toTargetLocks).to.be.eq(1e8);
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, 1e9)).toTargetBribePools).to.be.eq(0);
+
+      expect((await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, ethers.parseEther('1'))).toTargetLocks).to.be.eq(
         ethers.parseEther('0.1'),
       );
-      expect(await CompoundEmissionExtension.getAmountOutToLocks(signers.otherUser1, ethers.parseEther('12345678.87654321'))).to.be.eq(
-        ethers.parseEther('1234567.887654321'),
-      );
+      expect(
+        (await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, ethers.parseEther('1'))).toTargetBribePools,
+      ).to.be.eq(0);
+
+      expect(
+        (await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, ethers.parseEther('12345678.87654321'))).toTargetLocks,
+      ).to.be.eq(ethers.parseEther('1234567.887654321'));
+      expect(
+        (await CompoundEmissionExtension.getAmountOutToCompound(signers.otherUser1, ethers.parseEther('12345678.87654321')))
+          .toTargetBribePools,
+      ).to.be.eq(0);
     });
   });
 
@@ -922,7 +1463,7 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
       });
     });
 
-    describe('Should success claim rewards for user and distribute to locks from gauges', async () => {
+    describe('Should success claim rewards for user and distribute to locks & bribes pool from gauges', async () => {
       let gauge1: GaugeMock;
       let gauge2: GaugeMock;
 
@@ -952,7 +1493,8 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
       });
 
       describe('from KEEPER', async () => {
-        it('Not distribute to any locks, because user1 toLocksPercenatege is zero', async () => {
+        it('Not bribe any pools, because all percentages is zero', async () => {
+          expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser1)).to.be.eq(0);
           expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(0);
 
           let tx = await CompoundEmissionExtension.compoundEmissionClaimBatch([
@@ -984,15 +1526,79 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
           expect(await Fenix.balanceOf(signers.otherUser2)).to.be.eq(ethers.parseEther('200'));
         });
 
+        it('user 1 setup bribe 50% to one pool', async () => {
+          await Fenix.connect(signers.otherUser1).approve(Voter, ethers.MaxUint256);
+          await Fenix.connect(signers.otherUser2).approve(Voter, ethers.MaxUint256);
+
+          updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+          updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.5');
+          updateCompoundEmissionClaimParams.targetsBribePools = [{ pool: pool1.address, percentage: ethers.parseEther('1') }];
+
+          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+
+          expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(0);
+          expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.5'));
+
+          expect((await VotingEscrow.getNftState(1)).locked.amount).to.be.eq(ethers.parseEther('1'));
+
+          let currentEpoch = Math.floor((await time.latest()) / (86400 * 7)) * (86400 * 7);
+          let rewardData = await pool1.externalBribe.rewardData(Fenix, currentEpoch);
+          expect(rewardData.rewardsPerEpoch).to.be.eq(0);
+
+          let tx = await CompoundEmissionExtension.compoundEmissionClaimBatch([
+            {
+              target: signers.otherUser1,
+              gauges: [gauge1, gauge2],
+              merkl: {
+                proofs: [],
+                users: [],
+                amounts: [],
+                tokens: [],
+              },
+            },
+            {
+              target: signers.otherUser2,
+              gauges: [gauge1],
+              merkl: {
+                proofs: [],
+                users: [],
+                amounts: [],
+                tokens: [],
+              },
+            },
+          ]);
+
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(gauge1, signers.otherUser1, ethers.parseEther('100'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(gauge2, signers.otherUser1, ethers.parseEther('100'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(gauge1, signers.otherUser2, ethers.parseEther('200'));
+
+          expect(await Fenix.balanceOf(signers.otherUser1)).to.be.eq(ethers.parseEther('100'));
+          expect(await Fenix.balanceOf(signers.otherUser2)).to.be.eq(ethers.parseEther('200'));
+
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(signers.otherUser1, Voter, ethers.parseEther('100'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(Voter, CompoundEmissionExtension, ethers.parseEther('100'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(CompoundEmissionExtension, pool1.externalBribe, ethers.parseEther('100'));
+          await expect(tx).to.be.emit(pool1.externalBribe, 'RewardAdded').withArgs(Fenix, ethers.parseEther('100'), currentEpoch);
+          await expect(tx)
+            .to.be.emit(CompoundEmissionExtension, 'CompoundEmissionToBribePool')
+            .withArgs(signers.otherUser1, pool1.address, ethers.parseEther('100'));
+
+          expect((await VotingEscrow.getNftState(1)).locked.amount).to.be.eq(ethers.parseEther('1'));
+
+          rewardData = await pool1.externalBribe.rewardData(Fenix, currentEpoch);
+          expect(rewardData.rewardsPerEpoch).to.be.eq(ethers.parseEther('100'));
+        });
+
         it('user 1 setup distribute 50% to one lock', async () => {
           await Fenix.connect(signers.otherUser1).approve(Voter, ethers.MaxUint256);
 
-          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('0.5'), [
-            {
-              tokenId: 1,
-              lockPercentage: ethers.parseEther('1'),
-            },
-          ]);
+          updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+          updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5');
+          updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 1, percentage: ethers.parseEther('1') }];
+
+          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
 
           expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.5'));
 
@@ -1045,27 +1651,37 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
           await Fenix.connect(signers.otherUser1).approve(Voter, ethers.MaxUint256);
           await Fenix.connect(signers.otherUser2).approve(Voter, ethers.MaxUint256);
 
-          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('0.5'), [
+          updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+          updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5');
+          updateCompoundEmissionClaimParams.targetLocks = [
             {
               tokenId: 1,
-              lockPercentage: ethers.parseEther('0.6'),
+              percentage: ethers.parseEther('0.6'),
             },
             {
               tokenId: 2,
-              lockPercentage: ethers.parseEther('0.4'),
+              percentage: ethers.parseEther('0.4'),
             },
-          ]);
+          ];
 
-          await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(ethers.parseEther('1'), [
+          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+
+          updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+          updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('1');
+          updateCompoundEmissionClaimParams.targetLocks = [
             {
               tokenId: 0,
-              lockPercentage: ethers.parseEther('0.5'),
+              percentage: ethers.parseEther('0.5'),
             },
             {
               tokenId: 11,
-              lockPercentage: ethers.parseEther('0.5'),
+              percentage: ethers.parseEther('0.5'),
             },
-          ]);
+          ];
+
+          await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
 
           expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.5'));
           expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser2)).to.be.eq(ethers.parseEther('1'));
@@ -1084,7 +1700,7 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
           expect(user1Info.targetLocks).to.be.length(2);
           expect(user1Info.createLockConfig).to.be.deep.eq([false, false, 15724800, 0]);
-          expect(user1Info.isCustomConfig).to.be.false;
+          expect(user1Info.isCreateLockCustomConfig).to.be.false;
 
           expect(user2Info.toLocksPercentage).to.be.eq(ethers.parseEther('1'));
           expect(user2Info.targetLocks).to.be.deep.eq([
@@ -1093,7 +1709,7 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
           ]);
           expect(user2Info.targetLocks).to.be.length(2);
           expect(user2Info.createLockConfig).to.be.deep.eq([true, true, 0, 0]);
-          expect(user2Info.isCustomConfig).to.be.true;
+          expect(user2Info.isCreateLockCustomConfig).to.be.true;
 
           let lastMintedTokenId = await VotingEscrow.lastMintedTokenId();
 
@@ -1188,7 +1804,7 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
           expect(user1Info.targetLocks).to.be.length(2);
           expect(user1Info.createLockConfig).to.be.deep.eq([false, false, 15724800, 0]);
-          expect(user1Info.isCustomConfig).to.be.false;
+          expect(user1Info.isCreateLockCustomConfig).to.be.false;
 
           expect(user2Info.toLocksPercentage).to.be.eq(ethers.parseEther('1'));
           expect(user2Info.targetLocks).to.be.deep.eq([
@@ -1197,7 +1813,7 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
           ]);
           expect(user2Info.targetLocks).to.be.length(2);
           expect(user2Info.createLockConfig).to.be.deep.eq([true, true, 0, 0]);
-          expect(user2Info.isCustomConfig).to.be.true;
+          expect(user2Info.isCreateLockCustomConfig).to.be.true;
 
           lastMintedTokenId = await VotingEscrow.lastMintedTokenId();
 
@@ -1288,20 +1904,25 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
           await Fenix.connect(signers.otherUser1).approve(Voter, ethers.MaxUint256);
 
-          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('0.5'), [
+          updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+          updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5');
+          updateCompoundEmissionClaimParams.targetLocks = [
             {
               tokenId: 0,
-              lockPercentage: ethers.parseEther('0.6'),
+              percentage: ethers.parseEther('0.6'),
             },
             {
               tokenId: 1,
-              lockPercentage: ethers.parseEther('0.2'),
+              percentage: ethers.parseEther('0.2'),
             },
             {
               tokenId: 1,
-              lockPercentage: ethers.parseEther('0.2'),
+              percentage: ethers.parseEther('0.2'),
             },
-          ]);
+          ];
+
+          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
 
           expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.5'));
 
@@ -1318,7 +1939,7 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
           expect(user1Info.targetLocks).to.be.length(3);
           expect(user1Info.createLockConfig).to.be.deep.eq([true, true, 0, 0]);
-          expect(user1Info.isCustomConfig).to.be.true;
+          expect(user1Info.isCreateLockCustomConfig).to.be.true;
 
           let tx = await CompoundEmissionExtension.compoundEmissionClaimBatch([
             {
@@ -1391,20 +2012,25 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
           await Fenix.connect(signers.otherUser1).approve(Voter, ethers.MaxUint256);
 
-          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('0.5'), [
+          updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+          updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5');
+          updateCompoundEmissionClaimParams.targetLocks = [
             {
               tokenId: 0,
-              lockPercentage: ethers.parseEther('0.6'),
+              percentage: ethers.parseEther('0.6'),
             },
             {
               tokenId: 1,
-              lockPercentage: ethers.parseEther('0.2'),
+              percentage: ethers.parseEther('0.2'),
             },
             {
               tokenId: 2,
-              lockPercentage: ethers.parseEther('0.2'),
+              percentage: ethers.parseEther('0.2'),
             },
-          ]);
+          ];
+
+          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
 
           expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.5'));
 
@@ -1421,7 +2047,7 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
           expect(user1Info.targetLocks).to.be.length(3);
           expect(user1Info.createLockConfig).to.be.deep.eq([true, true, 0, 0]);
-          expect(user1Info.isCustomConfig).to.be.true;
+          expect(user1Info.isCreateLockCustomConfig).to.be.true;
 
           await VotingEscrow.connect(signers.otherUser1).merge(2, 1);
           user1Info = await CompoundEmissionExtension.getUserInfo(signers.otherUser1);
@@ -1491,6 +2117,7 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
             .to.be.emit(CompoundEmissionExtension, 'CompoundEmissionToTargetLock')
             .withArgs(signers.otherUser1, 3, ethers.parseEther('20'));
         });
+
         it('transfer', async () => {
           await CompoundEmissionExtension.connect(signers.otherUser1).setCreateLockConfig({
             lockDuration: 0,
@@ -1501,20 +2128,25 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
           await Fenix.connect(signers.otherUser1).approve(Voter, ethers.MaxUint256);
 
-          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(ethers.parseEther('0.5'), [
+          updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+          updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.5');
+          updateCompoundEmissionClaimParams.targetLocks = [
             {
               tokenId: 0,
-              lockPercentage: ethers.parseEther('0.6'),
+              percentage: ethers.parseEther('0.6'),
             },
             {
               tokenId: 1,
-              lockPercentage: ethers.parseEther('0.2'),
+              percentage: ethers.parseEther('0.2'),
             },
             {
               tokenId: 2,
-              lockPercentage: ethers.parseEther('0.2'),
+              percentage: ethers.parseEther('0.2'),
             },
-          ]);
+          ];
+
+          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
 
           expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.5'));
 
@@ -1531,7 +2163,7 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
 
           expect(user1Info.targetLocks).to.be.length(3);
           expect(user1Info.createLockConfig).to.be.deep.eq([true, true, 0, 0]);
-          expect(user1Info.isCustomConfig).to.be.true;
+          expect(user1Info.isCreateLockCustomConfig).to.be.true;
 
           await VotingEscrow.connect(signers.otherUser1).transferFrom(signers.otherUser1, signers.otherUser2, 2);
           user1Info = await CompoundEmissionExtension.getUserInfo(signers.otherUser1);
@@ -1598,6 +2230,212 @@ describe('CompoundEmissionExtensionUpgradeable', function () {
           await expect(tx)
             .to.be.emit(CompoundEmissionExtension, 'CompoundEmissionToTargetLock')
             .withArgs(signers.otherUser1, 1, ethers.parseEther('20'));
+        });
+
+        it('user 2 setup 30% to two locks [40,60], and setup 20% to two pools, [25,75]', async () => {
+          await Fenix.connect(signers.otherUser1).approve(Voter, ethers.MaxUint256);
+          await Fenix.connect(signers.otherUser2).approve(Voter, ethers.MaxUint256);
+
+          updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+
+          updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.3');
+          updateCompoundEmissionClaimParams.targetLocks = [
+            { tokenId: 11, percentage: ethers.parseEther('0.4') },
+            { tokenId: 12, percentage: ethers.parseEther('0.6') },
+          ];
+
+          updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.2');
+          updateCompoundEmissionClaimParams.targetsBribePools = [
+            { pool: pool1.address, percentage: ethers.parseEther('0.25') },
+            { pool: pool2.address, percentage: ethers.parseEther('0.75') },
+          ];
+
+          await CompoundEmissionExtension.connect(signers.otherUser2).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+
+          expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser2)).to.be.eq(ethers.parseEther('0.3'));
+          expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser2)).to.be.eq(ethers.parseEther('0.2'));
+
+          expect((await VotingEscrow.getNftState(11)).locked.amount).to.be.eq(ethers.parseEther('1'));
+          expect((await VotingEscrow.getNftState(12)).locked.amount).to.be.eq(ethers.parseEther('1'));
+
+          let currentEpoch = Math.floor((await time.latest()) / (86400 * 7)) * (86400 * 7);
+          let rewardData = await pool1.externalBribe.rewardData(Fenix, currentEpoch);
+          expect(rewardData.rewardsPerEpoch).to.be.eq(0);
+
+          rewardData = await pool2.externalBribe.rewardData(Fenix, currentEpoch);
+          expect(rewardData.rewardsPerEpoch).to.be.eq(0);
+
+          let tx = await CompoundEmissionExtension.compoundEmissionClaimBatch([
+            {
+              target: signers.otherUser1,
+              gauges: [gauge1, gauge2],
+              merkl: {
+                proofs: [],
+                users: [],
+                amounts: [],
+                tokens: [],
+              },
+            },
+            {
+              target: signers.otherUser2,
+              gauges: [gauge1, gauge2],
+              merkl: {
+                proofs: [],
+                users: [],
+                amounts: [],
+                tokens: [],
+              },
+            },
+          ]);
+
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(gauge1, signers.otherUser1, ethers.parseEther('100'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(gauge2, signers.otherUser1, ethers.parseEther('100'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(gauge1, signers.otherUser2, ethers.parseEther('200'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(gauge2, signers.otherUser2, ethers.parseEther('200'));
+
+          expect(await Fenix.balanceOf(signers.otherUser1)).to.be.eq(ethers.parseEther('200'));
+          expect(await Fenix.balanceOf(signers.otherUser2)).to.be.eq(ethers.parseEther('200'));
+
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(signers.otherUser2, Voter, ethers.parseEther('200'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(Voter, CompoundEmissionExtension, ethers.parseEther('200'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(CompoundEmissionExtension, VotingEscrow, ethers.parseEther('72'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(CompoundEmissionExtension, VotingEscrow, ethers.parseEther('48'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(CompoundEmissionExtension, pool1.externalBribe, ethers.parseEther('20'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(CompoundEmissionExtension, pool2.externalBribe, ethers.parseEther('60'));
+
+          await expect(tx).to.be.emit(pool1.externalBribe, 'RewardAdded').withArgs(Fenix, ethers.parseEther('20'), currentEpoch);
+          await expect(tx).to.be.emit(pool2.externalBribe, 'RewardAdded').withArgs(Fenix, ethers.parseEther('60'), currentEpoch);
+
+          await expect(tx)
+            .to.be.emit(CompoundEmissionExtension, 'CompoundEmissionToBribePool')
+            .withArgs(signers.otherUser2, pool1.address, ethers.parseEther('20'));
+
+          await expect(tx)
+            .to.be.emit(CompoundEmissionExtension, 'CompoundEmissionToBribePool')
+            .withArgs(signers.otherUser2, pool2.address, ethers.parseEther('60'));
+
+          await expect(tx)
+            .to.be.emit(CompoundEmissionExtension, 'CompoundEmissionToTargetLock')
+            .withArgs(signers.otherUser2, 11, ethers.parseEther('48'));
+
+          await expect(tx)
+            .to.be.emit(CompoundEmissionExtension, 'CompoundEmissionToTargetLock')
+            .withArgs(signers.otherUser2, 12, ethers.parseEther('72'));
+
+          expect((await VotingEscrow.getNftState(11)).locked.amount).to.be.eq(ethers.parseEther('49'));
+
+          expect((await VotingEscrow.getNftState(12)).locked.amount).to.be.eq(ethers.parseEther('73'));
+
+          rewardData = await pool1.externalBribe.rewardData(Fenix, currentEpoch);
+          expect(rewardData.rewardsPerEpoch).to.be.eq(ethers.parseEther('20'));
+
+          rewardData = await pool2.externalBribe.rewardData(Fenix, currentEpoch);
+          expect(rewardData.rewardsPerEpoch).to.be.eq(ethers.parseEther('60'));
+        });
+
+        it('user 1 setup 60% to two one lock, and setup 40% to two pools, [60, 40], but second pool was killed, should create new lock from this emission, according to create lock config', async () => {
+          await Fenix.connect(signers.otherUser1).approve(Voter, ethers.MaxUint256);
+          await Fenix.connect(signers.otherUser2).approve(Voter, ethers.MaxUint256);
+
+          updateCompoundEmissionClaimParams.shouldUpdateGeneralPercentages = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetBribePools = true;
+          updateCompoundEmissionClaimParams.shouldUpdateTargetLocks = true;
+
+          updateCompoundEmissionClaimParams.toLocksPercentage = ethers.parseEther('0.6');
+          updateCompoundEmissionClaimParams.targetLocks = [{ tokenId: 1, percentage: ethers.parseEther('1') }];
+
+          updateCompoundEmissionClaimParams.toBribePoolsPercentage = ethers.parseEther('0.4');
+          updateCompoundEmissionClaimParams.targetsBribePools = [
+            { pool: pool1.address, percentage: ethers.parseEther('0.6') },
+            { pool: pool2.address, percentage: ethers.parseEther('0.4') },
+          ];
+
+          await CompoundEmissionExtension.connect(signers.otherUser1).setCreateLockConfig({
+            lockDuration: 0,
+            withPermanentLock: true,
+            managedTokenIdForAttach: 0,
+            shouldBoosted: false,
+          });
+
+          await CompoundEmissionExtension.connect(signers.otherUser1).setCompoundEmissionConfig(updateCompoundEmissionClaimParams);
+
+          expect(await CompoundEmissionExtension.getToLocksPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.6'));
+          expect(await CompoundEmissionExtension.getToBribePoolsPercentage(signers.otherUser1)).to.be.eq(ethers.parseEther('0.4'));
+
+          expect((await VotingEscrow.getNftState(1)).locked.amount).to.be.eq(ethers.parseEther('1'));
+
+          expect(await Fenix.balanceOf(pool1.externalBribe)).to.be.eq(0);
+          expect(await Fenix.balanceOf(pool2.externalBribe)).to.be.eq(0);
+
+          let currentEpoch = Math.floor((await time.latest()) / (86400 * 7)) * (86400 * 7);
+          let rewardData = await pool1.externalBribe.rewardData(Fenix, currentEpoch);
+          expect(rewardData.rewardsPerEpoch).to.be.eq(0);
+
+          rewardData = await pool2.externalBribe.rewardData(Fenix, currentEpoch);
+          expect(rewardData.rewardsPerEpoch).to.be.eq(0);
+
+          await Voter.killGauge(pool1.gauge);
+          expect(await Voter.isAlive(pool1.gauge)).to.be.false;
+
+          let lastMintedTokenId = await VotingEscrow.lastMintedTokenId();
+
+          let tx = await CompoundEmissionExtension.compoundEmissionClaimBatch([
+            {
+              target: signers.otherUser1,
+              gauges: [gauge1, gauge2],
+              merkl: {
+                proofs: [],
+                users: [],
+                amounts: [],
+                tokens: [],
+              },
+            },
+          ]);
+
+          expect(await VotingEscrow.lastMintedTokenId()).to.be.eq(lastMintedTokenId + 1n);
+
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(gauge1, signers.otherUser1, ethers.parseEther('100'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(gauge2, signers.otherUser1, ethers.parseEther('100'));
+
+          expect(await Fenix.balanceOf(signers.otherUser1)).to.be.eq(0);
+
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(signers.otherUser1, Voter, ethers.parseEther('200'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(Voter, CompoundEmissionExtension, ethers.parseEther('200'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(CompoundEmissionExtension, VotingEscrow, ethers.parseEther('120'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(CompoundEmissionExtension, VotingEscrow, ethers.parseEther('48'));
+          await expect(tx).to.be.emit(Fenix, 'Transfer').withArgs(CompoundEmissionExtension, pool2.externalBribe, ethers.parseEther('32'));
+
+          await expect(tx).to.be.not.emit(pool1.externalBribe, 'RewardAdded');
+          await expect(tx).to.be.emit(pool2.externalBribe, 'RewardAdded').withArgs(Fenix, ethers.parseEther('32'), currentEpoch);
+          expect(await Fenix.balanceOf(pool1.externalBribe)).to.be.eq(0);
+          expect(await Fenix.balanceOf(pool2.externalBribe)).to.be.eq(ethers.parseEther('32'));
+
+          await expect(tx)
+            .to.be.emit(CompoundEmissionExtension, 'CreateLockFromCompoundEmissionForBribePools')
+            .withArgs(signers.otherUser1, pool1.address, lastMintedTokenId + 1n, ethers.parseEther('48'));
+
+          await expect(tx)
+            .to.be.emit(CompoundEmissionExtension, 'CompoundEmissionToBribePool')
+            .withArgs(signers.otherUser1, pool2.address, ethers.parseEther('32'));
+
+          await expect(tx)
+            .to.be.emit(CompoundEmissionExtension, 'CompoundEmissionToTargetLock')
+            .withArgs(signers.otherUser1, 1, ethers.parseEther('120'));
+
+          expect((await VotingEscrow.getNftState(1)).locked.amount).to.be.eq(ethers.parseEther('121'));
+
+          expect((await VotingEscrow.getNftState(lastMintedTokenId + 1n)).locked.amount).to.be.eq(ethers.parseEther('48'));
+          expect((await VotingEscrow.getNftState(lastMintedTokenId + 1n)).locked.isPermanentLocked).to.be.true;
+
+          expect(await VotingEscrow.ownerOf(lastMintedTokenId + 1n)).to.be.eq(signers.otherUser1);
+
+          rewardData = await pool1.externalBribe.rewardData(Fenix, currentEpoch);
+          expect(rewardData.rewardsPerEpoch).to.be.eq(0);
+
+          rewardData = await pool2.externalBribe.rewardData(Fenix, currentEpoch);
+          expect(rewardData.rewardsPerEpoch).to.be.eq(ethers.parseEther('32'));
         });
       });
     });
