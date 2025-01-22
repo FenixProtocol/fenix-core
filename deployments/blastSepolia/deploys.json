@@ -29,9 +29,9 @@
   "UtilsUpgradeable_Proxy": "0xcE0dc336D6059847f89cDac71F313607c0996225",
   "MinimalLinearVestingUpgradeable_Implementation": "0x72B6a4200E66530C3e9D8Bc9bE4769119B5305E7",
   "MinimalLinearVestingUpgradeable_Proxy": "0x8Fe5b818D4d7a0c75d9fEF3dd823376322c57820",
-  "VotingEscrowUpgradeable_Implementation": "0xe6A622a579352C7F50D18D51018F84B9c7Bb2B23",
+  "VotingEscrowUpgradeable_Implementation": "0xB90EB8eA7dE2BCF0e2D9323c5048b8Cb823D267C",
   "VotingEscrowUpgradeable_Proxy": "0xd19D6CfB8Dd04Ea6B74C7d771D6EC912C50c0e34",
-  "VoterUpgradeable_Implementation": "0x74A9FF96ed2D8476A3fdCB2Cc7c9EDcCA801e03d",
+  "VoterUpgradeable_Implementation": "0x338a08543bAa04b1699E05fAFb6d9786F27CDFd3",
   "VoterUpgradeable_Proxy": "0x7936D81EF0548bd8dC9fDa5d3C1204b8def8CB43",
   "BribeUpgradeable_Implementation": "0x4b7EF81cB931b50b20FdB04439515aC52a1CFC2D",
   "BribeFactoryUpgradeable_Implementation": "0xa76C4Cd922541d3b7680Dca1b4d025825605C1Ca",
@@ -69,6 +69,6 @@
   "BribeVeFNXRewardToken_Proxy": "0x7d31b330E84fF067B7c8A32cdD6166c7D517B46E",
   "CustomBribeRewardRouter_Implementation": "0x3529a5B6D21cA1dA312F8bCBBB2aE2a9802e7a46",
   "CustomBribeRewardRouter_Proxy": "0x6309bc679485A60C60f2e415C893dEE315F87548",
-  "CompoundEmissionExtensionUpgradeable_Implementation": "0x3DB6bc4F75bfB287Ee24cd7656bc91105d3f6393",
-  "CompoundEmissionExtensionUpgradeable_Proxy": "0x15d61eAC5502dc146BB7b0A7d58869D3AC6C95dA"
+  "CompoundEmissionExtensionUpgradeable_Implementation": "0x6926100Fc72d12918E7fAa8ad836492062cc58d9",
+  "CompoundEmissionExtensionUpgradeable_Proxy": "0x23552Bd313eC39ab702D665B5e2bAc4c466e0F65"
 }
